@@ -22,6 +22,7 @@ use franklin_crypto::plonk::circuit::allocated_num::Num;
 
 use crate::verifier_structs::constants::ConstantsHolder;
 use crate::traits::tree_hasher::CircuitGLTreeHasher;
+use crate::verifier_structs::gate_evaluator::TypeErasedGateEvaluationWrapperVerificationFunction;
 
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -29,21 +30,22 @@ use std::collections::HashMap;
 pub mod allocated_proof;
 pub mod allocated_queries;
 pub mod allocated_vk;
+pub mod gate_evaluator;
 pub mod challenges;
 pub mod constants;
 
-pub struct WrapperVerifier {
+pub struct WrapperVerifier<E: Engine, CS: ConstraintSystem<E> + 'static> {
     // when we init we get the following from VK
     pub parameters: CSGeometry,
     pub lookup_parameters: LookupParameters,
 
     pub(crate) gate_type_ids_for_specialized_columns: Vec<TypeId>,
-    // pub(crate) evaluators_over_specialized_columns:
-    //     Vec<TypeErasedGateEvaluationRecursiveVerificationFunction<F, EXT, CS>>,
+    pub(crate) evaluators_over_specialized_columns:
+        Vec<TypeErasedGateEvaluationWrapperVerificationFunction<E, CS>>,
     pub(crate) offsets_for_specialized_evaluators: Vec<(PerChunkOffset, PerChunkOffset, usize)>,
 
-    // pub(crate) evaluators_over_general_purpose_columns:
-    //     Vec<TypeErasedGateEvaluationRecursiveVerificationFunction<F, EXT, CS>>,
+    pub(crate) evaluators_over_general_purpose_columns:
+        Vec<TypeErasedGateEvaluationWrapperVerificationFunction<E, CS>>,
 
     pub(crate) total_num_variables_for_specialized_columns: usize,
     pub(crate) total_num_witnesses_for_specialized_columns: usize,
@@ -53,31 +55,31 @@ pub struct WrapperVerifier {
 }
 
 
-impl From<Verifier<GL, GLExt2>> for WrapperVerifier {
+impl<E: Engine, CS: ConstraintSystem<E>> From<Verifier<GL, GLExt2>> for WrapperVerifier<E, CS> {
     fn from(value: Verifier<GL, GLExt2>) -> Self {
         let Verifier {
             parameters,
             lookup_parameters,
             // gates_configuration,
             gate_type_ids_for_specialized_columns,
-            // evaluators_over_specialized_columns,
+            evaluators_over_specialized_columns,
             offsets_for_specialized_evaluators,
-            // evaluators_over_general_purpose_columns,
+            evaluators_over_general_purpose_columns,
             total_num_variables_for_specialized_columns,
             total_num_witnesses_for_specialized_columns,
             total_num_constants_for_specialized_columns,
             ..
         } = value;
 
-        // // capture small pieces of information from the gate configuration
-        // assert_eq!(
-        //     evaluators_over_specialized_columns.len(),
-        //     gate_type_ids_for_specialized_columns.len()
-        // );
+        // capture small pieces of information from the gate configuration
+        assert_eq!(
+            evaluators_over_specialized_columns.len(),
+            gate_type_ids_for_specialized_columns.len()
+        );
 
-        // let capacity = evaluators_over_specialized_columns.len();
-        // let mut placement_strategies = HashMap::with_capacity(capacity);
-        let placement_strategies = HashMap::new();
+        let capacity = evaluators_over_specialized_columns.len();
+        let mut placement_strategies = HashMap::with_capacity(capacity);
+        // let placement_strategies = HashMap::new();
 
         // for gate_type_id in gate_type_ids_for_specialized_columns.iter() {
         //     let placement_strategy = gates_configuration
@@ -90,9 +92,9 @@ impl From<Verifier<GL, GLExt2>> for WrapperVerifier {
             parameters,
             lookup_parameters,
             gate_type_ids_for_specialized_columns,
-            // evaluators_over_specialized_columns,
+            evaluators_over_specialized_columns: vec![],
             offsets_for_specialized_evaluators,
-            // evaluators_over_general_purpose_columns,
+            evaluators_over_general_purpose_columns: vec![],
             total_num_variables_for_specialized_columns,
             total_num_witnesses_for_specialized_columns,
             total_num_constants_for_specialized_columns,

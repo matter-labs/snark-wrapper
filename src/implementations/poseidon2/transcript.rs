@@ -56,7 +56,7 @@ impl<
 
     fn witness_field_elements<CS: ConstraintSystem<E>>(
         &mut self,
-        cs: &mut CS,
+        _cs: &mut CS,
         field_els: &[GoldilocksField<E>],
     ) -> Result<(), SynthesisError> {
         debug_assert!(self.last_filled < CHUNK_BY);
@@ -94,7 +94,7 @@ impl<
 
     fn witness_merkle_tree_cap<CS: ConstraintSystem<E>>(
         &mut self,
-        cs: &mut CS,
+        _cs: &mut CS,
         cap: &Vec<Self::CircuitCompatibleCap>,
     ) -> Result<(), SynthesisError> {
         self.last_filled = 0;

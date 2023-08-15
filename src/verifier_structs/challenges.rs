@@ -6,11 +6,23 @@ use boojum::field::traits::field_like::PrimeFieldLike;
 
 use franklin_crypto::plonk::circuit::goldilocks::prime_field_like::*;
 use franklin_crypto::bellman::plonk::better_better_cs::cs::ConstraintSystem;
+use franklin_crypto::plonk::circuit::goldilocks::prime_field_like::GoldilocksExtAsFieldWrapper;
+
+use crate::verifier::utils::materialize_powers_serial;
 
 pub(crate) struct ChallengesHolder<E: Engine, CS: ConstraintSystem<E>> {
-    // pub(crate) beta: GoldilocksFieldExt<E>,
-    // pub(crate) gamma: GoldilocksFieldExt<E>,
-    // pub(crate) alpha_powers: Vec<GoldilocksFieldExt<E>>,
+    pub(crate) beta: GoldilocksExtAsFieldWrapper<E, CS>,
+    pub(crate) gamma: GoldilocksExtAsFieldWrapper<E, CS>,
+    pub(crate) lookup_beta: GoldilocksExtAsFieldWrapper<E, CS>,
+    pub(crate) lookup_gamma: GoldilocksExtAsFieldWrapper<E, CS>,
+
+    pub(crate) alpha: GoldilocksExtAsFieldWrapper<E, CS>,
+    pub(crate) pregenerated_challenges_for_lookup: Vec<GoldilocksExtAsFieldWrapper<E, CS>>,
+    pub(crate) pregenerated_challenges_for_gates_over_specialized_columns: Vec<GoldilocksExtAsFieldWrapper<E, CS>>,
+    pub(crate) pregenerated_challenges_for_gates_over_general_purpose_columns: Vec<GoldilocksExtAsFieldWrapper<E, CS>>,
+    pub(crate) remaining_challenges: Vec<GoldilocksExtAsFieldWrapper<E, CS>>,
+
+
     pub(crate) z: GoldilocksExtAsFieldWrapper<E, CS>,
     pub(crate) z_omega: GoldilocksExtAsFieldWrapper<E, CS>,
 
@@ -23,17 +35,94 @@ pub(crate) struct ChallengesHolder<E: Engine, CS: ConstraintSystem<E>> {
 impl<E: Engine, CS: ConstraintSystem<E> + 'static> ChallengesHolder<E, CS> {
     pub fn new(cs: &mut CS) -> Self {
         Self {
-            // beta: GoldilocksFieldExt::zero(),
-            // gamma: GoldilocksFieldExt::zero(),
-            // alpha_powers: vec![],
+            beta: GoldilocksExtAsFieldWrapper::zero(cs),
+            gamma: GoldilocksExtAsFieldWrapper::zero(cs),
+            lookup_beta: GoldilocksExtAsFieldWrapper::zero(cs),
+            lookup_gamma: GoldilocksExtAsFieldWrapper::zero(cs),
+
+            alpha: GoldilocksExtAsFieldWrapper::zero(cs),
+            pregenerated_challenges_for_lookup: vec![],
+            pregenerated_challenges_for_gates_over_specialized_columns: vec![],
+            pregenerated_challenges_for_gates_over_general_purpose_columns: vec![],
+            remaining_challenges: vec![],
+
             z: GoldilocksExtAsFieldWrapper::zero(cs),
             z_omega: GoldilocksExtAsFieldWrapper::zero(cs),
 
             challenges_for_fri_quotiening: vec![],
             fri_intermediate_challenges: vec![],
-
-            // challenges: vec![],
         }
+    }
+
+    pub fn get_beta_gamma_challenges<T: CircuitGLTranscript<E>>(
+        &mut self,
+        cs: &mut CS,
+        transcript: &mut T,
+        verifier: &WrapperVerifier<E, CS>,
+    ) -> Result<(), SynthesisError> {
+        let beta = transcript.get_multiple_challenges_fixed::<_, 2>(cs)?;
+        self.beta = GoldilocksExtAsFieldWrapper::from_coeffs_in_base(beta);
+
+        let gamma = transcript.get_multiple_challenges_fixed::<_, 2>(cs)?;
+        self.gamma = GoldilocksExtAsFieldWrapper::from_coeffs_in_base(gamma);
+
+
+        (self.lookup_beta, self.lookup_gamma) = if verifier.lookup_parameters != LookupParameters::NoLookup {
+            // lookup argument related parts
+            let lookup_beta = transcript.get_multiple_challenges_fixed::<_, 2>(cs)?;
+            let lookup_beta =
+                GoldilocksExtAsFieldWrapper::from_coeffs_in_base(lookup_beta);
+            let lookup_gamma = transcript.get_multiple_challenges_fixed::<_, 2>(cs)?;
+            let lookup_gamma =
+                GoldilocksExtAsFieldWrapper::from_coeffs_in_base(lookup_gamma);
+
+            (lookup_beta, lookup_gamma)
+        } else {
+            let zero_ext = GoldilocksExtAsFieldWrapper::zero(cs);
+            (zero_ext, zero_ext)
+        };
+
+        Ok(())
+    }
+
+    pub fn get_alpha_powers<T: CircuitGLTranscript<E>>(
+        &mut self,
+        cs: &mut CS,
+        transcript: &mut T,
+        constants: &ConstantsHolder,
+    ) -> Result<(), SynthesisError> {
+        let alpha = transcript.get_multiple_challenges_fixed::<_, 2>(cs)?;
+        self.alpha = GoldilocksExtAsFieldWrapper::from_coeffs_in_base(alpha);
+    
+        let powers: Vec<_> = materialize_powers_serial(cs, self.alpha, constants.total_num_terms);
+        let rest = &powers[..];
+        let (take, rest) = rest.split_at(constants.total_num_lookup_argument_terms);
+        self.pregenerated_challenges_for_lookup = take.to_vec();
+        let (take, rest) = rest.split_at(constants.total_num_gate_terms_for_specialized_columns);
+        self.pregenerated_challenges_for_gates_over_specialized_columns = take.to_vec();
+        let (take, rest) = rest.split_at(constants.total_num_gate_terms_for_general_purpose_columns);
+        self.pregenerated_challenges_for_gates_over_general_purpose_columns = take.to_vec();
+        self.remaining_challenges = rest.to_vec();
+
+        Ok(())
+    }
+
+    pub fn get_z_challenge<T: CircuitGLTranscript<E>>(
+        &mut self,
+        cs: &mut CS,
+        transcript: &mut T, 
+        fixed_parameters: &VerificationKeyCircuitGeometry,
+    ) -> Result<(), SynthesisError> {
+        let z = transcript.get_multiple_challenges_fixed::<_, 2>(cs)?;
+        self.z = GoldilocksExtAsFieldWrapper::from_coeffs_in_base(z);
+
+        use boojum::cs::implementations::utils::domain_generator_for_size;
+        let omega = domain_generator_for_size::<GL>(fixed_parameters.domain_size.trailing_zeros() as u64);
+        let omega_cs_constant = GoldilocksAsFieldWrapper::constant(omega, cs);
+        self.z_omega = self.z;
+        self.z_omega.mul_assign_by_base(cs, &omega_cs_constant)?;
+
+        Ok(())
     }
 
     pub fn get_challenges_for_fri_quotiening<T: CircuitGLTranscript<E>>(
@@ -127,5 +216,38 @@ impl<E: Engine, CS: ConstraintSystem<E> + 'static> ChallengesHolder<E, CS> {
         }
 
         Ok(())
+    }
+}
+
+pub(crate) struct EvaluationsHolder<E: Engine, CS: ConstraintSystem<E>> {
+    pub(crate) all_values_at_z: Vec<GoldilocksExtAsFieldWrapper<E, CS>>,
+    pub(crate) all_values_at_z_omega: Vec<GoldilocksExtAsFieldWrapper<E, CS>>,
+    pub(crate) all_values_at_0: Vec<GoldilocksExtAsFieldWrapper<E, CS>>,
+}
+
+impl<E: Engine, CS: ConstraintSystem<E>> EvaluationsHolder<E, CS> {
+    pub(crate) fn from_proof<H: CircuitGLTreeHasher<E>>(
+        proof: &AllocatedProof<E, H>,
+    ) -> Self {
+        Self {
+            all_values_at_z: proof
+                .values_at_z
+                .iter()
+                .map(|el| 
+                    GoldilocksExtAsFieldWrapper::<E, CS>::from_coeffs_in_base(*el)
+                ).collect(),
+            all_values_at_z_omega: proof
+                .values_at_z_omega
+                .iter()
+                .map(|el| 
+                    GoldilocksExtAsFieldWrapper::<E, CS>::from_coeffs_in_base(*el)
+                ).collect(),
+            all_values_at_0: proof
+                .values_at_0
+                .iter()
+                .map(|el| 
+                    GoldilocksExtAsFieldWrapper::<E, CS>::from_coeffs_in_base(*el)
+                ).collect()
+        }
     }
 }

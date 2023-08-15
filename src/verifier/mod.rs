@@ -7,6 +7,7 @@ use boojum::field::Field as BoojumField;
 use boojum::field::PrimeField as BoojumPrimeField;
 use boojum::field::traits::field_like::PrimeFieldLike;
 use boojum::cs::implementations::utils::domain_generator_for_size;
+use boojum::cs::LookupParameters;
 
 use franklin_crypto::bellman::pairing::Engine;
 use franklin_crypto::plonk::circuit::boolean::Boolean;
@@ -22,13 +23,17 @@ use franklin_crypto::plonk::circuit::goldilocks::{
 use crate::verifier_structs::{*, allocated_proof::*};
 use crate::traits::transcript::CircuitGLTranscript;
 use crate::traits::tree_hasher::CircuitGLTreeHasher;
-use crate::verifier_structs::challenges::ChallengesHolder;
+use crate::verifier_structs::challenges::{ChallengesHolder, EvaluationsHolder};
 use crate::verifier_structs::allocated_vk::AllocatedVerificationKey;
 use crate::verifier_structs::constants::ConstantsHolder;
 
+mod first_step;
+mod quotient_contributions;
 mod fri;
 pub(crate) mod utils;
 
+use first_step::*;
+use quotient_contributions::*;
 use fri::*;
 use utils::*;
 
@@ -46,70 +51,48 @@ pub fn verify<
     transcript_params: TR::TranscriptParameters,
     proof_config: &ProofConfig,
     proof: &AllocatedProof<E, H>,
-    verifier: &WrapperVerifier,
+    verifier: &WrapperVerifier<E, CS>,
     fixed_parameters: &VerificationKeyCircuitGeometry,
     vk: &AllocatedVerificationKey<E, H>,
 ) -> Result<Boolean, SynthesisError> {
-    let mut validity_flags = vec![];
+    let mut validity_flags = Vec::with_capacity(256);
 
     let mut transcript = TR::new(cs, transcript_params)?;
     let mut challenges = ChallengesHolder::new(cs);
+
+    // prepare constants
     let constants = ConstantsHolder::generate(proof_config, verifier, fixed_parameters);
+    assert_eq!(fixed_parameters.cap_size, vk.setup_merkle_tree_cap.len());
 
-    let num_public_inputs = proof.public_inputs.len();
-    let mut public_inputs_with_values = Vec::with_capacity(num_public_inputs);
-    let mut public_input_allocated = Vec::with_capacity(num_public_inputs);
+    // let zero_num = Num::<F>::zero(cs);
 
-    // commit public inputs
-    for ((column, row), value) in fixed_parameters
-        .public_inputs_locations
-        .iter()
-        .copied()
-        .zip(proof.public_inputs.iter().copied())
-    {
-        transcript.witness_field_elements(cs, &[value])?;
-        public_input_allocated.push(value);
-        let value = value.into();
-        public_inputs_with_values.push((column, row, value));
-    }
+    // let zero_base = NumAsFieldWrapper::<F, CS>::zero(cs);
 
-    // and public inputs should also go into quotient
-    let mut public_input_opening_tuples: Vec<(GL, Vec<(usize, GoldilocksAsFieldWrapper<E, CS>)>)> =
-        vec![];
-    {
-        let omega = domain_generator_for_size::<GL>(fixed_parameters.domain_size as u64);
+    // let zero_ext = GoldilocksExtAsFieldWrapper::<E, CS>::zero(cs);
+    // let one_ext = NumExtAsFieldWrapper::<F, EXT, CS>::one(cs);
 
-        for (column, row, value) in public_inputs_with_values.into_iter() {
-            let open_at = BoojumField::pow_u64(&omega, row as u64);
-            let pos = public_input_opening_tuples
-                .iter()
-                .position(|el| el.0 == open_at);
-            if let Some(pos) = pos {
-                public_input_opening_tuples[pos].1.push((column, value));
-            } else {
-                public_input_opening_tuples.push((open_at, vec![(column, value)]));
-            }
-        }
-    }
+    // let multiplicative_generator =
+    //     NumAsFieldWrapper::constant(F::multiplicative_generator(), cs);
 
-    let all_values_at_z: Vec<_> = proof
-        .values_at_z
-        .iter()
-        .map(|el| 
-            GoldilocksExtAsFieldWrapper::<E, CS>::from_coeffs_in_base(*el)
-        ).collect();
-    let all_values_at_z_omega: Vec<_> = proof
-        .values_at_z_omega
-        .iter()
-        .map(|el| 
-            GoldilocksExtAsFieldWrapper::<E, CS>::from_coeffs_in_base(*el)
-        ).collect();
-    let all_values_at_0: Vec<_> = proof
-        .values_at_0
-        .iter()
-        .map(|el| 
-            GoldilocksExtAsFieldWrapper::<E, CS>::from_coeffs_in_base(*el)
-        ).collect(); 
+    let public_input_opening_tuples = verify_first_step(
+        cs,
+        proof,
+        vk,
+        &mut challenges,
+        &mut transcript,
+        verifier,
+        fixed_parameters,
+        &constants,
+    )?;
+
+    check_quotient_contributions_in_z(
+        cs,
+        proof,
+        &challenges,
+        verifier,
+        fixed_parameters,
+        &constants,
+    )?;
 
     // TODO: implement
 
@@ -126,16 +109,13 @@ pub fn verify<
     validity_flags.extend(verify_fri_part::<E, CS, H, TR>(
         cs,
         proof,
-        verifier,
         vk,
         &mut challenges,
         &mut transcript,
-        fixed_parameters,
         public_input_opening_tuples,
+        verifier,
+        fixed_parameters,
         &constants,
-        &all_values_at_z,
-        &all_values_at_z_omega,
-        &all_values_at_0,
     )?);
 
     let correct = smart_and(cs, &validity_flags)?;

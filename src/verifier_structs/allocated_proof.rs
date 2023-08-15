@@ -30,7 +30,7 @@ impl<
     pub fn allocate_from_witness<CS: ConstraintSystem<E>>(
         cs: &mut CS,
         witness: Option<Proof<GL, HS, GLExt2>>,
-        verifier: &WrapperVerifier,
+        verifier: &WrapperVerifier<E, CS>,
         fixed_parameters: &VerificationKeyCircuitGeometry,
         proof_config: &ProofConfig,
     ) -> Result<Self, SynthesisError> {

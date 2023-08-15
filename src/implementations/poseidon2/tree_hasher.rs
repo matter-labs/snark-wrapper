@@ -141,7 +141,7 @@ impl<F: PrimeField> AbsorptionModeTrait<F> for AbsorptionModeReplacement<F> {
         *dst = *src;
     }
 
-    fn pad(dst: &mut F) {
+    fn pad(_dst: &mut F) {
         unimplemented!("pad is not used")
     }
 }

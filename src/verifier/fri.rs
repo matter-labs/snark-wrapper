@@ -1,13 +1,11 @@
 use super::*;
 
 use crate::traits::transcript::BoolsBuffer;
+use crate::verifier_structs::allocated_queries::AllocatedSingleRoundQueries;
 
 pub(crate) fn verify_fri_part<
     E: Engine, 
     CS: ConstraintSystem<E> + 'static,
-    // M: AbsorptionModeTrait<E::Fr>,
-    // const RATE: usize,
-    // const WIDTH: usize,
     H: CircuitGLTreeHasher<E>,
     TR: CircuitGLTranscript<
         E,
@@ -16,16 +14,14 @@ pub(crate) fn verify_fri_part<
 >(
     cs: &mut CS,
     proof: &AllocatedProof<E, H>,
-    verifier: &WrapperVerifier,
     vk: &AllocatedVerificationKey<E, H>,
     challenges: &mut ChallengesHolder<E, CS>,
     transcript: &mut TR,
-    fixed_parameters: &VerificationKeyCircuitGeometry,
     public_input_opening_tuples: Vec<(GL, Vec<(usize, GoldilocksAsFieldWrapper<E, CS>)>)>,
+    // parameters
+    verifier: &WrapperVerifier<E, CS>,
+    fixed_parameters: &VerificationKeyCircuitGeometry,
     constants: &ConstantsHolder,
-    all_values_at_z: &Vec<GoldilocksExtAsFieldWrapper<E, CS>>,
-    all_values_at_z_omega: &Vec<GoldilocksExtAsFieldWrapper<E, CS>>,
-    all_values_at_0: &Vec<GoldilocksExtAsFieldWrapper<E, CS>>,
 ) -> Result<Vec<Boolean>, SynthesisError> {
     let mut validity_flags = vec![];
 
@@ -41,6 +37,7 @@ pub(crate) fn verify_fri_part<
     transcript.witness_field_elements(cs, &proof.final_fri_monomials[0])?;
     transcript.witness_field_elements(cs, &proof.final_fri_monomials[1])?;
 
+    assert_eq!(constants.new_pow_bits, 0, "PoW not supported yet");
     // if new_pow_bits != 0 {
     //     log!("Doing PoW verification for {} bits", new_pow_bits);
     //     // log!("Prover gave challenge 0x{:016x}", proof.pow_challenge);
@@ -71,11 +68,6 @@ pub(crate) fn verify_fri_part<
 
     assert_eq!(constants.num_fri_repetitions, proof.queries_per_fri_repetition.len());
 
-
-    let zero_num = GoldilocksField::zero();
-    let zero_base = GoldilocksAsFieldWrapper::<E, CS>::zero(cs);
-
-
     let multiplicative_generator =
         GoldilocksAsFieldWrapper::constant(GL::multiplicative_generator(), cs);
 
@@ -90,9 +82,6 @@ pub(crate) fn verify_fri_part<
         precomputed_powers.push(omega);
         precomputed_powers_inversed.push(BoojumPrimeField::inverse(&omega).unwrap());
     }
-
-    let omega = precomputed_powers[fixed_parameters.domain_size.trailing_zeros() as usize];
-    let omega_cs_constant = GoldilocksAsFieldWrapper::constant(omega, cs);
 
     // we also want to precompute "steps" for different interpolation degrees
     // e.g. if we interpolate 8 elements,
@@ -129,11 +118,6 @@ pub(crate) fn verify_fri_part<
         .collect();
 
 
-    use boojum::cs::implementations::copy_permutation::num_intermediate_partial_product_relations;
-    let num_copy_permutation_polys = constants.num_variable_polys;
-    let num_intermediate_partial_product_relations =
-        num_intermediate_partial_product_relations(num_copy_permutation_polys, constants.quotient_degree);
-
     let base_oracle_depth = fixed_parameters.base_oracles_depth();
 
 
@@ -154,49 +138,19 @@ pub(crate) fn verify_fri_part<
         let base_tree_idx = query_index_lsb_first_bits.clone();
 
         // first verify basic inclusion proofs
-        assert_eq!(constants.witness_leaf_size, queries.witness_query.leaf_elements.len());
-        assert_eq!(base_oracle_depth, queries.witness_query.proof.len());
-        validity_flags.push(check_if_included::<E, CS, H>(
+        validity_flags.extend(verify_inclusion_proofs(
             cs, 
-            &queries.witness_query.leaf_elements, 
-            &queries.witness_query.proof, 
-            &proof.witness_oracle_cap, 
-            &base_tree_idx
-        )?);
-
-        assert_eq!(constants.stage_2_leaf_size, queries.stage_2_query.leaf_elements.len());
-        assert_eq!(base_oracle_depth, queries.stage_2_query.proof.len());
-        validity_flags.push(check_if_included::<E, CS, H>(
-            cs, 
-            &queries.stage_2_query.leaf_elements, 
-            &queries.stage_2_query.proof, 
-            &proof.stage_2_oracle_cap, 
-            &base_tree_idx
-        )?);
-
-        assert_eq!(constants.quotient_leaf_size, queries.quotient_query.leaf_elements.len());
-        assert_eq!(base_oracle_depth, queries.quotient_query.proof.len());
-        validity_flags.push(check_if_included::<E, CS, H>(
-            cs, 
-            &queries.quotient_query.leaf_elements, 
-            &queries.quotient_query.proof, 
-            &proof.quotient_oracle_cap, 
-            &base_tree_idx
-        )?);
-
-        assert_eq!(constants.setup_leaf_size, queries.setup_query.leaf_elements.len());
-        assert_eq!(base_oracle_depth, queries.setup_query.proof.len());
-        validity_flags.push(check_if_included::<E, CS, H>(
-            cs, 
-            &queries.setup_query.leaf_elements, 
-            &queries.setup_query.proof, 
-            &vk.setup_merkle_tree_cap, 
-            &base_tree_idx
+            queries, 
+            proof, 
+            vk, 
+            &base_tree_idx, 
+            constants, 
+            base_oracle_depth
         )?);
 
 
         // now perform the quotiening operation
-        let zero_ext = <GoldilocksExtAsFieldWrapper::<E, CS> as PrimeFieldLike>::zero(cs);
+        let zero_ext = GoldilocksExtAsFieldWrapper::<E, CS>::zero(cs);
         let mut simulated_ext_element = zero_ext;
 
         assert_eq!(
@@ -229,200 +183,21 @@ pub(crate) fn verify_fri_part<
 
         let mut domain_element_for_interpolation = domain_element_for_quotiening;
 
-        let mut challenge_offset = 0;
+        verify_quotening_operations(
+            cs,
+            &mut simulated_ext_element,
+            queries,
+            proof,
+            &public_input_opening_tuples,
+            domain_element_for_quotiening,
+            challenges,
+            verifier,
+            constants,
+        )?;
 
-        let z_polys_offset = 0;
-        let intermediate_polys_offset = 2;
-        let lookup_witness_encoding_polys_offset =
-            intermediate_polys_offset + num_intermediate_partial_product_relations * 2;
-        let lookup_multiplicities_encoding_polys_offset =
-            lookup_witness_encoding_polys_offset + constants.num_lookup_subarguments * 2;
-        let copy_permutation_polys_offset = 0;
-        let constants_offset = 0 + num_copy_permutation_polys;
-        let lookup_tables_values_offset = 0 + num_copy_permutation_polys + constants.num_constant_polys;
-        let variables_offset = 0;
-        let witness_columns_offset = constants.num_variable_polys;
-        let lookup_multiplicities_offset = witness_columns_offset + constants.num_witness_polys;
         let base_coset_inverse = BoojumPrimeField::inverse(&GL::multiplicative_generator()).unwrap();
 
-        {
-            let z = challenges.z;
-            let z_omega = challenges.z_omega;
-
-            let cast_from_base = move |el: &[GoldilocksField<E>]| {
-                el.iter()
-                    .map(|el| {
-                        GoldilocksExtAsFieldWrapper::<E, CS>::from_coeffs_in_base([*el, GoldilocksField::zero()])
-                    }).collect::<Vec<_>>()
-            };
-
-            let cast_from_extension = move |el: &[GoldilocksField<E>]| {
-                assert_eq!(el.len() % 2, 0);
-
-                el.array_chunks::<2>()
-                    .map(|[c0, c1]| {
-                        GoldilocksExtAsFieldWrapper::<E, CS>::from_coeffs_in_base([*c0, *c1])
-                    }).collect::<Vec<_>>()
-            };
-
-            let mut sources = vec![];
-            // witness
-            sources.extend(cast_from_base(
-                &queries.witness_query.leaf_elements
-                    [variables_offset..(variables_offset + constants.num_variable_polys)],
-            ));
-            sources.extend(cast_from_base(
-                &queries.witness_query.leaf_elements
-                    [witness_columns_offset..(witness_columns_offset + constants.num_witness_polys)],
-            ));
-            // normal setup
-            sources.extend(cast_from_base(
-                &queries.setup_query.leaf_elements
-                    [constants_offset..(constants_offset + constants.num_constant_polys)],
-            ));
-            sources.extend(cast_from_base(
-                &queries.setup_query.leaf_elements[copy_permutation_polys_offset
-                    ..(copy_permutation_polys_offset + num_copy_permutation_polys)],
-            ));
-            // copy-permutation
-            sources.extend(cast_from_extension(
-                &queries.stage_2_query.leaf_elements[z_polys_offset..intermediate_polys_offset],
-            ));
-            sources.extend(cast_from_extension(
-                &queries.stage_2_query.leaf_elements
-                    [intermediate_polys_offset..lookup_witness_encoding_polys_offset],
-            ));
-            // lookup if exists
-            sources.extend(cast_from_base(
-                &queries.witness_query.leaf_elements[lookup_multiplicities_offset
-                    ..(lookup_multiplicities_offset + constants.num_multiplicities_polys)],
-            ));
-            sources.extend(cast_from_extension(
-                &queries.stage_2_query.leaf_elements[lookup_witness_encoding_polys_offset
-                    ..lookup_multiplicities_encoding_polys_offset],
-            ));
-            sources.extend(cast_from_extension(
-                &queries.stage_2_query.leaf_elements
-                    [lookup_multiplicities_encoding_polys_offset..],
-            ));
-            // lookup setup
-            if verifier.lookup_parameters.lookup_is_allowed() {
-                let num_lookup_setups = verifier.lookup_parameters.lookup_width() + 1;
-                sources.extend(cast_from_base(
-                    &queries.setup_query.leaf_elements[lookup_tables_values_offset
-                        ..(lookup_tables_values_offset + num_lookup_setups)],
-                ));
-            }
-            // quotient
-            sources.extend(cast_from_extension(&queries.quotient_query.leaf_elements));
-
-            assert_eq!(sources.len(), all_values_at_z.len());
-            // log!("Making quotiening at Z");
-            quotening_operation(
-                cs,
-                &mut simulated_ext_element,
-                &sources,
-                all_values_at_z,
-                domain_element_for_quotiening,
-                z,
-                &challenges.challenges_for_fri_quotiening
-                    [challenge_offset..(challenge_offset + sources.len())],
-            );
-            challenge_offset += sources.len();
-
-            // now z*omega
-            let mut sources = vec![];
-            sources.extend(cast_from_extension(
-                &queries.stage_2_query.leaf_elements[z_polys_offset..intermediate_polys_offset],
-            ));
-
-            assert_eq!(sources.len(), all_values_at_z_omega.len());
-            // log!("Making quotiening at Z*omega");
-            quotening_operation(
-                cs,
-                &mut simulated_ext_element,
-                &sources,
-                all_values_at_z_omega,
-                domain_element_for_quotiening,
-                z_omega,
-                &challenges.challenges_for_fri_quotiening
-                    [challenge_offset..(challenge_offset + sources.len())],
-            );
-
-            challenge_offset += sources.len();
-            // now at 0 if lookup is needed
-            if verifier.lookup_parameters.lookup_is_allowed() {
-                let mut sources = vec![];
-                // witness encoding
-                sources.extend(cast_from_extension(
-                    &queries.stage_2_query.leaf_elements[lookup_witness_encoding_polys_offset
-                        ..lookup_multiplicities_encoding_polys_offset],
-                ));
-                // multiplicities encoding
-                sources.extend(cast_from_extension(
-                    &queries.stage_2_query.leaf_elements
-                        [lookup_multiplicities_encoding_polys_offset..],
-                ));
-
-                assert_eq!(sources.len(), all_values_at_0.len());
-                // log!("Making quotiening at 0 for lookups sumchecks");
-                quotening_operation(
-                    cs,
-                    &mut simulated_ext_element,
-                    &sources,
-                    all_values_at_0,
-                    domain_element_for_quotiening,
-                    zero_ext,
-                    &challenges.challenges_for_fri_quotiening
-                        [challenge_offset..(challenge_offset + sources.len())],
-                );
-
-                challenge_offset += sources.len();
-            }
-        }
-
-        // and public inputs
-        for (open_at, set) in public_input_opening_tuples.iter() {
-            let mut sources = Vec::with_capacity(set.len());
-            let mut values = Vec::with_capacity(set.len());
-            for (column, expected_value) in set.into_iter() {
-                let c0 = queries.witness_query.leaf_elements[*column];
-                let el =
-                    GoldilocksExtAsFieldWrapper::<E, CS>::from_coeffs_in_base([c0, zero_num]);
-                sources.push(el);
-
-                let value = GoldilocksExtAsFieldWrapper::<E, CS>::from_wrapper_coeffs_in_base([
-                    *expected_value,
-                    zero_base,
-                ]);
-                values.push(value);
-            }
-            let num_challenges_required = sources.len();
-            assert_eq!(values.len(), num_challenges_required);
-
-            // log!("Making quotiening at {} for public inputs", open_at);
-
-            let open_at = GoldilocksAsFieldWrapper::constant(*open_at, cs);
-            let open_at =
-                GoldilocksExtAsFieldWrapper::<E, CS>::from_wrapper_coeffs_in_base([open_at, zero_base]);
-
-            quotening_operation(
-                cs,
-                &mut simulated_ext_element,
-                &sources,
-                &values,
-                domain_element_for_quotiening,
-                open_at,
-                &challenges.challenges_for_fri_quotiening
-                    [challenge_offset..(challenge_offset + sources.len())],
-            );
-
-            challenge_offset += num_challenges_required;
-        }
-
-        assert_eq!(challenge_offset, challenges.challenges_for_fri_quotiening.len());
-
-        let mut current_folded_value = simulated_ext_element;
+        let mut current_folded_value: GoldilocksExtAsFieldWrapper<E, CS> = simulated_ext_element;
         let mut subidx = base_tree_idx;
         let mut coset_inverse = base_coset_inverse;
 
@@ -572,6 +347,281 @@ pub(crate) fn verify_fri_part<
 
     Ok(validity_flags)
 }
+
+fn verify_inclusion_proofs<
+    E: Engine, 
+    CS: ConstraintSystem<E> + 'static,
+    H: CircuitGLTreeHasher<E>,
+>(
+    cs: &mut CS,
+    queries: &AllocatedSingleRoundQueries<E, H>,
+    proof: &AllocatedProof<E, H>,
+    vk: &AllocatedVerificationKey<E, H>,
+    base_tree_idx: &Vec<Boolean>,
+    constants: &ConstantsHolder,
+    base_oracle_depth: usize,
+) -> Result<Vec<Boolean>, SynthesisError> {
+    let mut validity_flags = Vec::new();
+
+    assert_eq!(constants.witness_leaf_size, queries.witness_query.leaf_elements.len());
+    assert_eq!(base_oracle_depth, queries.witness_query.proof.len());
+    validity_flags.push(check_if_included::<E, CS, H>(
+        cs, 
+        &queries.witness_query.leaf_elements, 
+        &queries.witness_query.proof, 
+        &proof.witness_oracle_cap, 
+        &base_tree_idx
+    )?);
+
+    assert_eq!(constants.stage_2_leaf_size, queries.stage_2_query.leaf_elements.len());
+    assert_eq!(base_oracle_depth, queries.stage_2_query.proof.len());
+    validity_flags.push(check_if_included::<E, CS, H>(
+        cs, 
+        &queries.stage_2_query.leaf_elements, 
+        &queries.stage_2_query.proof, 
+        &proof.stage_2_oracle_cap, 
+        &base_tree_idx
+    )?);
+
+    assert_eq!(constants.quotient_leaf_size, queries.quotient_query.leaf_elements.len());
+    assert_eq!(base_oracle_depth, queries.quotient_query.proof.len());
+    validity_flags.push(check_if_included::<E, CS, H>(
+        cs, 
+        &queries.quotient_query.leaf_elements, 
+        &queries.quotient_query.proof, 
+        &proof.quotient_oracle_cap, 
+        &base_tree_idx
+    )?);
+
+    assert_eq!(constants.setup_leaf_size, queries.setup_query.leaf_elements.len());
+    assert_eq!(base_oracle_depth, queries.setup_query.proof.len());
+    validity_flags.push(check_if_included::<E, CS, H>(
+        cs, 
+        &queries.setup_query.leaf_elements, 
+        &queries.setup_query.proof, 
+        &vk.setup_merkle_tree_cap, 
+        &base_tree_idx
+    )?);
+
+    Ok(validity_flags)
+}
+
+fn verify_quotening_operations<
+    E: Engine, 
+    CS: ConstraintSystem<E> + 'static,
+    H: CircuitGLTreeHasher<E>,
+>(
+    cs: &mut CS,
+    simulated_ext_element: &mut GoldilocksExtAsFieldWrapper<E, CS>,
+    queries: &AllocatedSingleRoundQueries<E, H>,
+    proof: &AllocatedProof<E, H>,
+    public_input_opening_tuples: &Vec<(GL, Vec<(usize, GoldilocksAsFieldWrapper<E, CS>)>)>,
+    domain_element_for_quotiening: GoldilocksAsFieldWrapper<E, CS>,
+    challenges: &ChallengesHolder<E, CS>,
+    verifier: &WrapperVerifier<E, CS>,
+    constants: &ConstantsHolder,
+) -> Result<(), SynthesisError> {
+    let zero_num = GoldilocksField::zero();
+    let zero_base = GoldilocksAsFieldWrapper::<E, CS>::zero(cs);
+    let zero_ext = GoldilocksExtAsFieldWrapper::<E, CS>::zero(cs);
+
+    let mut challenge_offset = 0;
+
+    let z_polys_offset = 0;
+    let intermediate_polys_offset = 2;
+    let lookup_witness_encoding_polys_offset =
+        intermediate_polys_offset + constants.num_intermediate_partial_product_relations * 2;
+    let lookup_multiplicities_encoding_polys_offset =
+        lookup_witness_encoding_polys_offset + constants.num_lookup_subarguments * 2;
+    let copy_permutation_polys_offset = 0;
+    let constants_offset = 0 + constants.num_copy_permutation_polys;
+    let lookup_tables_values_offset = 0 + constants.num_copy_permutation_polys + constants.num_constant_polys;
+    let variables_offset = 0;
+    let witness_columns_offset = constants.num_variable_polys;
+    let lookup_multiplicities_offset = witness_columns_offset + constants.num_witness_polys;
+
+    let evaluations = EvaluationsHolder::from_proof(proof);
+
+    {
+        let z = challenges.z;
+        let z_omega = challenges.z_omega;
+
+        let cast_from_base = move |el: &[GoldilocksField<E>]| {
+            el.iter()
+                .map(|el| {
+                    GoldilocksExtAsFieldWrapper::<E, CS>::from_coeffs_in_base([*el, GoldilocksField::zero()])
+                }).collect::<Vec<_>>()
+        };
+
+        let cast_from_extension = move |el: &[GoldilocksField<E>]| {
+            assert_eq!(el.len() % 2, 0);
+
+            el.array_chunks::<2>()
+                .map(|[c0, c1]| {
+                    GoldilocksExtAsFieldWrapper::<E, CS>::from_coeffs_in_base([*c0, *c1])
+                }).collect::<Vec<_>>()
+        };
+
+        let mut sources = vec![];
+        // witness
+        sources.extend(cast_from_base(
+            &queries.witness_query.leaf_elements
+                [variables_offset..(variables_offset + constants.num_variable_polys)],
+        ));
+        sources.extend(cast_from_base(
+            &queries.witness_query.leaf_elements
+                [witness_columns_offset..(witness_columns_offset + constants.num_witness_polys)],
+        ));
+        // normal setup
+        sources.extend(cast_from_base(
+            &queries.setup_query.leaf_elements
+                [constants_offset..(constants_offset + constants.num_constant_polys)],
+        ));
+        sources.extend(cast_from_base(
+            &queries.setup_query.leaf_elements[copy_permutation_polys_offset
+                ..(copy_permutation_polys_offset + constants.num_copy_permutation_polys)],
+        ));
+        // copy-permutation
+        sources.extend(cast_from_extension(
+            &queries.stage_2_query.leaf_elements[z_polys_offset..intermediate_polys_offset],
+        ));
+        sources.extend(cast_from_extension(
+            &queries.stage_2_query.leaf_elements
+                [intermediate_polys_offset..lookup_witness_encoding_polys_offset],
+        ));
+        // lookup if exists
+        sources.extend(cast_from_base(
+            &queries.witness_query.leaf_elements[lookup_multiplicities_offset
+                ..(lookup_multiplicities_offset + constants.num_multiplicities_polys)],
+        ));
+        sources.extend(cast_from_extension(
+            &queries.stage_2_query.leaf_elements[lookup_witness_encoding_polys_offset
+                ..lookup_multiplicities_encoding_polys_offset],
+        ));
+        sources.extend(cast_from_extension(
+            &queries.stage_2_query.leaf_elements
+                [lookup_multiplicities_encoding_polys_offset..],
+        ));
+        // lookup setup
+        if verifier.lookup_parameters.lookup_is_allowed() {
+            let num_lookup_setups = verifier.lookup_parameters.lookup_width() + 1;
+            sources.extend(cast_from_base(
+                &queries.setup_query.leaf_elements[lookup_tables_values_offset
+                    ..(lookup_tables_values_offset + num_lookup_setups)],
+            ));
+        }
+        // quotient
+        sources.extend(cast_from_extension(&queries.quotient_query.leaf_elements));
+
+        assert_eq!(sources.len(), evaluations.all_values_at_z.len());
+        // log!("Making quotiening at Z");
+        quotening_operation(
+            cs,
+            simulated_ext_element,
+            &sources,
+            &evaluations.all_values_at_z,
+            domain_element_for_quotiening,
+            z,
+            &challenges.challenges_for_fri_quotiening
+                [challenge_offset..(challenge_offset + sources.len())],
+        );
+        challenge_offset += sources.len();
+
+        // now z*omega
+        let mut sources = vec![];
+        sources.extend(cast_from_extension(
+            &queries.stage_2_query.leaf_elements[z_polys_offset..intermediate_polys_offset],
+        ));
+
+        assert_eq!(sources.len(), evaluations.all_values_at_z_omega.len());
+        // log!("Making quotiening at Z*omega");
+        quotening_operation(
+            cs,
+            simulated_ext_element,
+            &sources,
+            &evaluations.all_values_at_z_omega,
+            domain_element_for_quotiening,
+            z_omega,
+            &challenges.challenges_for_fri_quotiening
+                [challenge_offset..(challenge_offset + sources.len())],
+        );
+
+        challenge_offset += sources.len();
+        // now at 0 if lookup is needed
+        if verifier.lookup_parameters.lookup_is_allowed() {
+            let mut sources = vec![];
+            // witness encoding
+            sources.extend(cast_from_extension(
+                &queries.stage_2_query.leaf_elements[lookup_witness_encoding_polys_offset
+                    ..lookup_multiplicities_encoding_polys_offset],
+            ));
+            // multiplicities encoding
+            sources.extend(cast_from_extension(
+                &queries.stage_2_query.leaf_elements
+                    [lookup_multiplicities_encoding_polys_offset..],
+            ));
+
+            assert_eq!(sources.len(), evaluations.all_values_at_0.len());
+            // log!("Making quotiening at 0 for lookups sumchecks");
+            quotening_operation(
+                cs,
+                simulated_ext_element,
+                &sources,
+                &evaluations.all_values_at_0,
+                domain_element_for_quotiening,
+                zero_ext,
+                &challenges.challenges_for_fri_quotiening
+                    [challenge_offset..(challenge_offset + sources.len())],
+            );
+
+            challenge_offset += sources.len();
+        }
+    }
+
+    // and public inputs
+    for (open_at, set) in public_input_opening_tuples.iter() {
+        let mut sources = Vec::with_capacity(set.len());
+        let mut values = Vec::with_capacity(set.len());
+        for (column, expected_value) in set.into_iter() {
+            let c0 = queries.witness_query.leaf_elements[*column];
+            let el =
+                GoldilocksExtAsFieldWrapper::<E, CS>::from_coeffs_in_base([c0, zero_num]);
+            sources.push(el);
+
+            let value = GoldilocksExtAsFieldWrapper::<E, CS>::from_wrapper_coeffs_in_base([
+                *expected_value,
+                zero_base,
+            ]);
+            values.push(value);
+        }
+        let num_challenges_required = sources.len();
+        assert_eq!(values.len(), num_challenges_required);
+
+        // log!("Making quotiening at {} for public inputs", open_at);
+
+        let open_at = GoldilocksAsFieldWrapper::constant(*open_at, cs);
+        let open_at =
+            GoldilocksExtAsFieldWrapper::<E, CS>::from_wrapper_coeffs_in_base([open_at, zero_base]);
+
+        quotening_operation(
+            cs,
+            simulated_ext_element,
+            &sources,
+            &values,
+            domain_element_for_quotiening,
+            open_at,
+            &challenges.challenges_for_fri_quotiening
+                [challenge_offset..(challenge_offset + sources.len())],
+        );
+
+        challenge_offset += num_challenges_required;
+    }
+
+    assert_eq!(challenge_offset, challenges.challenges_for_fri_quotiening.len());
+
+    Ok(())
+}
+
 
 fn check_if_included<
     E: Engine, 

@@ -11,5 +11,6 @@ use franklin_crypto::plonk::circuit::goldilocks::*;
 use franklin_crypto::bellman::plonk::better_better_cs::cs::ConstraintSystem;
 use franklin_crypto::bellman::{Field, SynthesisError};
 
+pub mod circuit;
 pub mod transcript;
 pub mod tree_hasher;
