@@ -133,7 +133,7 @@ impl<
             queries_per_fri_repetition.push(queries);
         }
 
-        let mut pow_challenge_boolean = [Boolean::alloc(cs, None)?; 64];
+        let mut pow_challenge_boolean = [Boolean::Constant(true); 64];
         let pow_challenge = witness.as_ref().map(|el| el.pow_challenge);
         if let Some(pow_challenge) = pow_challenge {
             let pow_challenge = [pow_challenge];

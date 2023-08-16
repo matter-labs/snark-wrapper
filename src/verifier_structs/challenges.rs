@@ -117,7 +117,7 @@ impl<E: Engine, CS: ConstraintSystem<E> + 'static> ChallengesHolder<E, CS> {
         self.z = GoldilocksExtAsFieldWrapper::from_coeffs_in_base(z);
 
         use boojum::cs::implementations::utils::domain_generator_for_size;
-        let omega = domain_generator_for_size::<GL>(fixed_parameters.domain_size.trailing_zeros() as u64);
+        let omega = domain_generator_for_size::<GL>(fixed_parameters.domain_size as u64);
         let omega_cs_constant = GoldilocksAsFieldWrapper::constant(omega, cs);
         self.z_omega = self.z;
         self.z_omega.mul_assign_by_base(cs, &omega_cs_constant)?;

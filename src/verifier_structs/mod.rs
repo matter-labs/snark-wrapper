@@ -1,4 +1,4 @@
-use franklin_crypto::plonk::circuit::goldilocks::{GoldilocksField, GoldilocksFieldExt};
+use franklin_crypto::plonk::circuit::goldilocks::GoldilocksField;
 
 use boojum::cs::CSGeometry;
 use boojum::cs::LookupParameters;
@@ -10,14 +10,11 @@ use boojum::cs::implementations::prover::ProofConfig;
 use boojum::cs::implementations::verifier::VerificationKeyCircuitGeometry;
 use boojum::cs::oracle::TreeHasher;
 use boojum::cs::implementations::proof::{OracleQuery, SingleRoundQueries};
-use boojum::cs::GateConfigurationHolder;
-use boojum::cs::StaticToolboxHolder;
-use boojum::cs::implementations::verifier::Verifier;
 
 use franklin_crypto::bellman::pairing::Engine;
 use franklin_crypto::plonk::circuit::boolean::Boolean;
 use franklin_crypto::bellman::plonk::better_better_cs::cs::ConstraintSystem;
-use franklin_crypto::bellman::{Field, SynthesisError, PrimeField};
+use franklin_crypto::bellman::SynthesisError;
 use franklin_crypto::plonk::circuit::allocated_num::Num;
 
 use crate::verifier_structs::constants::ConstantsHolder;
@@ -52,55 +49,6 @@ pub struct WrapperVerifier<E: Engine, CS: ConstraintSystem<E> + 'static> {
     pub(crate) total_num_constants_for_specialized_columns: usize,
 
     pub(crate) placement_strategies: HashMap<TypeId, GatePlacementStrategy>,
-}
-
-
-impl<E: Engine, CS: ConstraintSystem<E>> From<Verifier<GL, GLExt2>> for WrapperVerifier<E, CS> {
-    fn from(value: Verifier<GL, GLExt2>) -> Self {
-        let Verifier {
-            parameters,
-            lookup_parameters,
-            // gates_configuration,
-            gate_type_ids_for_specialized_columns,
-            evaluators_over_specialized_columns,
-            offsets_for_specialized_evaluators,
-            evaluators_over_general_purpose_columns,
-            total_num_variables_for_specialized_columns,
-            total_num_witnesses_for_specialized_columns,
-            total_num_constants_for_specialized_columns,
-            ..
-        } = value;
-
-        // capture small pieces of information from the gate configuration
-        assert_eq!(
-            evaluators_over_specialized_columns.len(),
-            gate_type_ids_for_specialized_columns.len()
-        );
-
-        let capacity = evaluators_over_specialized_columns.len();
-        let mut placement_strategies = HashMap::with_capacity(capacity);
-        // let placement_strategies = HashMap::new();
-
-        // for gate_type_id in gate_type_ids_for_specialized_columns.iter() {
-        //     let placement_strategy = gates_configuration
-        //         .placement_strategy_for_type_id(*gate_type_id)
-        //         .expect("gate must be allowed");
-        //     placement_strategies.insert(*gate_type_id, placement_strategy);
-        // }
-
-        Self {
-            parameters,
-            lookup_parameters,
-            gate_type_ids_for_specialized_columns,
-            evaluators_over_specialized_columns: vec![],
-            offsets_for_specialized_evaluators,
-            evaluators_over_general_purpose_columns: vec![],
-            total_num_variables_for_specialized_columns,
-            total_num_witnesses_for_specialized_columns,
-            total_num_constants_for_specialized_columns,
-            placement_strategies,
-        }
-    }
 }
 
 pub fn allocate_num_elements<T, R, E: Engine, CS: ConstraintSystem<E>>(

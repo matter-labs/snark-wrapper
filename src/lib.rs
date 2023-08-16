@@ -1,5 +1,6 @@
 #![feature(array_chunks)]
 #![feature(allocator_api)]
+#![feature(type_changing_struct_update)]
 
 pub mod verifier;
 pub mod verifier_structs;

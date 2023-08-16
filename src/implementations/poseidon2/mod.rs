@@ -2,7 +2,7 @@ use franklin_crypto::plonk::circuit::allocated_num::Num;
 use franklin_crypto::bellman::pairing::Engine;
 use franklin_crypto::bellman::plonk::better_better_cs::cs::ConstraintSystem;
 use franklin_crypto::plonk::circuit::goldilocks::GoldilocksField;
-use franklin_crypto::bellman::{Field, SynthesisError, PrimeField};
+use franklin_crypto::bellman::{SynthesisError, PrimeField};
 use franklin_crypto::plonk::circuit::boolean::Boolean;
 use franklin_crypto::plonk::circuit::linear_combination::LinearCombination;
 use franklin_crypto::bellman::PrimeFieldRepr;
@@ -10,9 +10,7 @@ use franklin_crypto::bellman::PrimeFieldRepr;
 use rescue_poseidon::poseidon2::Poseidon2Params;
 use rescue_poseidon::circuit::poseidon2::circuit_poseidon2_round_function;
 
-use boojum::field::SmallField;
-use boojum::algebraic_props::round_function::AbsorptionModeTrait;
-use boojum::field::goldilocks::{GoldilocksField as GL, GoldilocksExt2 as GLExt2};
+use boojum::field::goldilocks::GoldilocksField as GL;
 use boojum::field::PrimeField as BoojumPrimeField;
 
 use derivative::*;

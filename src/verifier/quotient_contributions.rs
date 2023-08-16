@@ -179,8 +179,6 @@ pub(crate) fn check_quotient_contributions_in_z<
         cs,
         challenges,
         &mut t_accumulator,
-        &src,
-        &mut selectors_buffer,
         &variables_polys_values,
         copy_permutation_z_at_z,
         copy_permutation_z_at_z_omega,
@@ -811,8 +809,6 @@ pub(crate) fn check_copy_permutation_contribution<
     cs: &mut CS,
     challenges: &ChallengesHolder<E, CS>,
     t_accumulator: &mut GoldilocksExtAsFieldWrapper<E, CS>,
-    src: &VerifierPolyStorage<GL, GoldilocksExtAsFieldWrapper<E, CS>>,
-    selectors_buffer: &mut HashMap<Vec<bool>, GoldilocksExtAsFieldWrapper<E, CS>>,
     // polynomial values
     variables_polys_values: &Vec<GoldilocksExtAsFieldWrapper<E, CS>>,
     copy_permutation_z_at_z: GoldilocksExtAsFieldWrapper<E, CS>,

@@ -1,8 +1,6 @@
-use boojum::cs::implementations::verifier::{Verifier, VerificationKey};
-use boojum::algebraic_props::round_function::AbsorptionModeTrait;
 use boojum::cs::implementations::prover::ProofConfig;
 use boojum::cs::implementations::verifier::VerificationKeyCircuitGeometry;
-use boojum::field::goldilocks::{GoldilocksField as GL, GoldilocksExt2 as GLExt2};
+use boojum::field::goldilocks::GoldilocksField as GL;
 use boojum::field::Field as BoojumField;
 use boojum::field::PrimeField as BoojumPrimeField;
 use boojum::field::traits::field_like::PrimeFieldLike;
@@ -15,10 +13,8 @@ use franklin_crypto::bellman::plonk::better_better_cs::cs::ConstraintSystem;
 use franklin_crypto::bellman::{Field, SynthesisError, PrimeField};
 use franklin_crypto::plonk::circuit::linear_combination::LinearCombination;
 use franklin_crypto::plonk::circuit::goldilocks::GoldilocksField;
-use franklin_crypto::plonk::circuit::goldilocks::{
-    GoldilocksFieldExt, 
-    prime_field_like::{GoldilocksAsFieldWrapper, GoldilocksExtAsFieldWrapper}
-};
+use franklin_crypto::plonk::circuit::goldilocks::
+    prime_field_like::{GoldilocksAsFieldWrapper, GoldilocksExtAsFieldWrapper};
 
 use crate::verifier_structs::{*, allocated_proof::*};
 use crate::traits::transcript::CircuitGLTranscript;

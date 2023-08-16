@@ -1,5 +1,3 @@
-use franklin_crypto::bellman::constants;
-
 use super::*;
 
 pub struct AllocatedSingleRoundQueries<E: Engine, H: CircuitGLTreeHasher<E>> {
