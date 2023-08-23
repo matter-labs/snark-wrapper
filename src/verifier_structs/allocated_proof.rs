@@ -1,5 +1,8 @@
 use super::*;
 
+use crate::franklin_crypto::bellman::{Field, PrimeField};
+use boojum::field::PrimeField as BoojumPrimeField;
+
 use super::allocated_queries::AllocatedSingleRoundQueries;
 pub struct AllocatedProof<E: Engine, H: CircuitGLTreeHasher<E>> {
     pub public_inputs: Vec<GoldilocksField<E>>,
@@ -29,7 +32,7 @@ impl<
 
     pub fn allocate_from_witness<CS: ConstraintSystem<E>>(
         cs: &mut CS,
-        witness: Option<Proof<GL, HS, GLExt2>>,
+        witness: &Option<Proof<GL, HS, GLExt2>>,
         verifier: &WrapperVerifier<E, CS>,
         fixed_parameters: &VerificationKeyCircuitGeometry,
         proof_config: &ProofConfig,
