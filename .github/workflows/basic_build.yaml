@@ -2,6 +2,8 @@ name: SNARK Wrapper builder
 
 on:
   pull_request:
+  push:
+      branches: ["enable-basic-ci"]
 
 jobs:
   basic-build:
