@@ -2,6 +2,7 @@ use super::*;
 
 use boojum::cs::implementations::verifier::VerificationKey;
 
+#[derive(Clone, Debug)]
 pub struct AllocatedVerificationKey<E: Engine, H: CircuitGLTreeHasher<E>> {
     pub setup_merkle_tree_cap: Vec<H::CircuitOutput>,
 }
