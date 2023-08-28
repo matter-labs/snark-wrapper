@@ -10,4 +10,4 @@ derivative = "2"
 
 franklin_crypto = {package = "franklin-crypto", features = ["plonk"], git = "https://github.com/matter-labs/franklin-crypto", branch = "snark_wrapper"}
 rescue_poseidon = {git = "https://github.com/matter-labs/rescue-poseidon.git", branch = "poseidon2"}
-boojum = {git = "https://github.com/matter-labs/boojum.git", branch = "snark-wrapper"}
+boojum = {git = "https://github.com/matter-labs/boojum.git", branch = "main"}
