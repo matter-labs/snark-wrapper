@@ -3,7 +3,7 @@ name: SNARK Wrapper builder
 on:
   pull_request:
   push:
-      branches: ["enable-basic-ci"]
+      branches: ["enable-basic-ci", "update-rust"]
 
 jobs:
   basic-build:
@@ -25,11 +25,11 @@ jobs:
       - name: setup rust
         run: |
           rustup set profile minimal
-          rustup toolchain install nightly-2023-05-31
-          rustup default nightly-2023-05-31
+          rustup toolchain install nightly-2023-02-04
+          rustup default nightly-2023-02-04
       
       - name: build
         run: |
           git config --global --add url."https://${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}:x-oauth-basic@github.com/".insteadOf ssh://git@github.com/
           git config --global --add url."https://${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}:x-oauth-basic@github.com/".insteadOf https://github.com/
-          cargo +nightly-2023-05-31 build --release
+          cargo +nightly-2023-02-04 build --release
