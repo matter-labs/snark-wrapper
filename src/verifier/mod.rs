@@ -73,13 +73,13 @@ impl<
 > Circuit<E> for WrapperCircuit<E, HS, H, TR, PWF> {
     type MainGate = SelectorOptimizedWidth4MainGateWithDNext;
 
-    // fn declare_used_gates() -> Result<Vec<Box<dyn GateInternal<E>>>, SynthesisError> {
-    //     Ok(
-    //         vec![Self::MainGate::default().into_internal(),
-    //             Rescue5CustomGate::default().into_internal(),
-    //         ]
-    //     )
-    // }
+    fn declare_used_gates() -> Result<Vec<Box<dyn GateInternal<E>>>, SynthesisError> {
+        Ok(
+            vec![Self::MainGate::default().into_internal(),
+                Rescue5CustomGate::default().into_internal(),
+            ]
+        )
+    }
 
     fn synthesize<CS: ConstraintSystem<E> + 'static>(&self, cs: &mut CS) -> Result<(), SynthesisError> {
         // add table for range check
