@@ -1,8 +1,5 @@
 use super::*;
 
-use crate::franklin_crypto::bellman::{Field, PrimeField};
-use boojum::field::PrimeField as BoojumPrimeField;
-
 use super::allocated_queries::AllocatedSingleRoundQueries;
 pub struct AllocatedProof<E: Engine, H: CircuitGLTreeHasher<E>> {
     pub public_inputs: Vec<GoldilocksField<E>>,
