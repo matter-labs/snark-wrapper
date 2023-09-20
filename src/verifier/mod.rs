@@ -1,5 +1,6 @@
 use boojum::cs::implementations::prover::ProofConfig;
 use boojum::cs::implementations::verifier::VerificationKeyCircuitGeometry;
+use boojum::cs::implementations::verifier::VerificationKey;
 use boojum::field::goldilocks::{GoldilocksField as GL, GoldilocksExt2 as GLExt2};
 use boojum::field::Field as BoojumField;
 use boojum::field::PrimeField as BoojumPrimeField;
@@ -55,7 +56,7 @@ pub struct WrapperCircuit<
     PWF: ProofWrapperFunction<E>,
 > {
     pub witness: Option<Proof<GL, HS, GLExt2>>,
-    pub vk: AllocatedVerificationKey<E, H>,
+    pub vk: VerificationKey<GL, H::NonCircuitSimulator>,
     pub fixed_parameters: VerificationKeyCircuitGeometry,
     pub transcript_params: TR::TranscriptParameters,
     pub wrapper_function: PWF,
@@ -105,8 +106,12 @@ impl<
         let verifier = verifier_builder.create_wrapper_verifier(cs);
 
         let proof_config = self.wrapper_function.proof_config_for_compression_step();
-
         let fixed_parameters = self.fixed_parameters.clone();
+
+        let vk = AllocatedVerificationKey::<E, H>::allocate_constant(
+            &self.vk,
+            &fixed_parameters,
+        );
 
         let proof: AllocatedProof<E, H> = AllocatedProof::allocate_from_witness(
             cs,
@@ -124,7 +129,7 @@ impl<
             &proof,
             &verifier,
             &fixed_parameters,
-            &self.vk,
+            &vk,
         )?;
 
         // aggregate public inputs to one scalar field element
