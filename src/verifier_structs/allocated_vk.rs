@@ -48,5 +48,29 @@ impl<
             })
         }
     }
+
+    pub fn allocate_constant(
+        witness: &VerificationKey<GL, H::NonCircuitSimulator>,
+        vk_fixed_parameters: &VerificationKeyCircuitGeometry,
+    ) -> Self {
+        let VerificationKey {
+            setup_merkle_tree_cap,
+            fixed_parameters,
+        } = witness;
+
+        assert_eq!(vk_fixed_parameters, fixed_parameters);
+
+        // allocate fixed length
+        assert!(fixed_parameters.cap_size > 0);
+        let cap = setup_merkle_tree_cap
+            .iter()
+            .map(|x|
+                Num::Constant(*x)
+            ).collect();
+    
+        Self {
+            setup_merkle_tree_cap: cap,
+        }
+    }
 }
 
