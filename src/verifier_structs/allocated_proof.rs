@@ -142,6 +142,10 @@ impl<
             for i in 0..64 {
                 pow_challenge_boolean[i] = Boolean::alloc(cs, Some(lsb_iter.next().unwrap()))?;
             }
+        } else {
+            for i in 0..64 {
+                pow_challenge_boolean[i] = Boolean::alloc(cs, None)?;
+            }
         }
 
         let final_fri_monomials = [final_fri_monomials_c0, final_fri_monomials_c1];
@@ -172,18 +176,20 @@ pub fn allocate_gl_array<E: Engine, CS: ConstraintSystem<E>, const N: usize>(
     cs: &mut CS,
     source: Option<[GL; N]>,
 ) -> Result<[GoldilocksField<E>; N], SynthesisError> {
+    let mut el = [GoldilocksField::zero(); N];
+
     match source {
         Some(witness) => {
-            // let witness = source.next().expect(&format!("must contain enough elements: failed to get element {} (zero enumerated) from expected list of {}", idx, num_elements));
-            let mut el = [GoldilocksField::zero(); N];
             for (i, witness) in witness.iter().enumerate() {
                 el[i] = GoldilocksField::alloc_from_field(cs, Some(*witness))?;
             }
-
-            Ok(el)
         }
         None => {
-            Ok([GoldilocksField::alloc(cs, None)?; N])
+            for i in 0..N {
+                el[i] = GoldilocksField::alloc_from_field(cs, None)?;
+            }
         }
     }
+
+    Ok(el)
 }
