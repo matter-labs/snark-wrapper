@@ -135,17 +135,16 @@ impl<
 
         let mut pow_challenge_boolean = [Boolean::Constant(true); 64];
         let pow_challenge = witness.as_ref().map(|el| el.pow_challenge);
-        if let Some(pow_challenge) = pow_challenge {
-            let pow_challenge = [pow_challenge];
-            let mut lsb_iter = boojum::utils::LSBIterator::new(&pow_challenge);
 
-            for i in 0..64 {
-                pow_challenge_boolean[i] = Boolean::alloc(cs, Some(lsb_iter.next().unwrap()))?;
-            }
+        let pow_challenge = if let Some(pow_challenge) = pow_challenge {
+            vec![pow_challenge]
         } else {
-            for i in 0..64 {
-                pow_challenge_boolean[i] = Boolean::alloc(cs, None)?;
-            }
+            vec![]
+        };
+
+        let mut lsb_iter = boojum::utils::LSBIterator::new(&pow_challenge);
+        for i in 0..64 {
+            pow_challenge_boolean[i] = Boolean::alloc(cs, lsb_iter.next())?;
         }
 
         let final_fri_monomials = [final_fri_monomials_c0, final_fri_monomials_c1];
@@ -178,17 +177,17 @@ pub fn allocate_gl_array<E: Engine, CS: ConstraintSystem<E>, const N: usize>(
 ) -> Result<[GoldilocksField<E>; N], SynthesisError> {
     let mut el = [GoldilocksField::zero(); N];
 
-    match source {
+    let mut source_it = match source {
         Some(witness) => {
-            for (i, witness) in witness.iter().enumerate() {
-                el[i] = GoldilocksField::alloc_from_field(cs, Some(*witness))?;
-            }
+            witness.to_vec().into_iter()
         }
         None => {
-            for i in 0..N {
-                el[i] = GoldilocksField::alloc_from_field(cs, None)?;
-            }
+            vec![].into_iter()
         }
+    };
+
+    for i in 0..N {
+        el[i] = GoldilocksField::alloc_from_field(cs, source_it.next())?;
     }
 
     Ok(el)
