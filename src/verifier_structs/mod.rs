@@ -54,27 +54,16 @@ pub struct WrapperVerifier<E: Engine, CS: ConstraintSystem<E> + 'static> {
 pub fn allocate_num_elements<T, R, E: Engine, CS: ConstraintSystem<E>>(
     cs: &mut CS,
     num_elements: usize,
-    source: Option<impl Iterator<Item = T>>,
+    mut source: Option<impl Iterator<Item = T>>,
     allocating_function: impl Fn(&mut CS, Option<T>) -> Result<R, SynthesisError>,
 ) -> Result<Vec<R>, SynthesisError> {
     let mut result = Vec::with_capacity(num_elements);
-    match source {
-        Some(mut source) => {
-            for idx in 0..num_elements {
-                let witness = source.next().expect(&format!("must contain enough elements: failed to get element {} (zero enumerated) from expected list of {}", idx, num_elements));
-                let el = allocating_function(cs, Some(witness))?;
-                result.push(el);
-            }
 
-            assert!(source.next().is_none());
-        }
-        None => {
-            for _ in 0..num_elements {
-                let el = allocating_function(cs, None)?;
-                result.push(el);
-            }
-        }
+    for _ in 0..num_elements {
+        let el = source.as_mut().map(|el| el.next()).flatten();
+        result.push(allocating_function(cs, el)?);
     }
+    debug_assert!(source.as_mut().map(|el| el.next()).flatten().is_none());
 
     Ok(result)
 }

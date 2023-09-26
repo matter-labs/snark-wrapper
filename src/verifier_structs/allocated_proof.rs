@@ -134,15 +134,12 @@ impl<
         }
 
         let mut pow_challenge_boolean = [Boolean::Constant(true); 64];
-        let pow_challenge = witness.as_ref().map(|el| el.pow_challenge);
-
-        let pow_challenge = if let Some(pow_challenge) = pow_challenge {
-            vec![pow_challenge]
-        } else {
-            vec![]
-        };
+        let pow_challenge = witness.as_ref()
+            .map(|el| vec![el.pow_challenge])
+            .unwrap_or(vec![]);
 
         let mut lsb_iter = boojum::utils::LSBIterator::new(&pow_challenge);
+
         for i in 0..64 {
             pow_challenge_boolean[i] = Boolean::alloc(cs, lsb_iter.next())?;
         }
@@ -175,20 +172,14 @@ pub fn allocate_gl_array<E: Engine, CS: ConstraintSystem<E>, const N: usize>(
     cs: &mut CS,
     source: Option<[GL; N]>,
 ) -> Result<[GoldilocksField<E>; N], SynthesisError> {
-    let mut el = [GoldilocksField::zero(); N];
+    let mut result = [GoldilocksField::zero(); N];
 
-    let mut source_it = match source {
-        Some(witness) => {
-            witness.to_vec().into_iter()
-        }
-        None => {
-            vec![].into_iter()
-        }
-    };
+    let mut source_it = source.map(|s| s.into_iter());
 
     for i in 0..N {
-        el[i] = GoldilocksField::alloc_from_field(cs, source_it.next())?;
+        let el = source_it.as_mut().map(|el| el.next()).flatten();
+        result[i] = GoldilocksField::alloc_from_field(cs, el)?;
     }
 
-    Ok(el)
+    Ok(result)
 }
