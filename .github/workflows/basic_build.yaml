@@ -3,17 +3,14 @@ name: SNARK Wrapper builder
 on:
   pull_request:
   push:
-      branches: ["enable-basic-ci"]
+      branches: ["main"]
 
 jobs:
   basic-build:
-    runs-on: [ self-hosted, ci-runner ]
+    runs-on: [ubuntu-latest]
     
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # v3
-        with:
-          submodules: "recursive"
-          token: ${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}
       
       - name: Setup rustup
         run: |
@@ -30,6 +27,4 @@ jobs:
       
       - name: build
         run: |
-          git config --global --add url."https://${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}:x-oauth-basic@github.com/".insteadOf ssh://git@github.com/
-          git config --global --add url."https://${{ secrets.ZKSYNC_ADMIN_BOT_ORG_REPO_WRITE }}:x-oauth-basic@github.com/".insteadOf https://github.com/
           cargo +nightly-2023-05-31 build --release
