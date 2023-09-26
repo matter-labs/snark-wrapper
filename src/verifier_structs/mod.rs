@@ -60,10 +60,12 @@ pub fn allocate_num_elements<T, R, E: Engine, CS: ConstraintSystem<E>>(
     let mut result = Vec::with_capacity(num_elements);
 
     for _ in 0..num_elements {
-        let el = source.as_mut().map(|el| el.next()).flatten();
+        let el = source.as_mut().map(|el| 
+            el.next().expect("Should be enough elements in the source")
+        );
         result.push(allocating_function(cs, el)?);
     }
-    debug_assert!(source.as_mut().map(|el| el.next()).flatten().is_none());
+    debug_assert!(source.as_mut().map(|el| el.next().is_none()).unwrap_or(true));
 
     Ok(result)
 }

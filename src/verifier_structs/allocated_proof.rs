@@ -177,7 +177,9 @@ pub fn allocate_gl_array<E: Engine, CS: ConstraintSystem<E>, const N: usize>(
     let mut source_it = source.map(|s| s.into_iter());
 
     for i in 0..N {
-        let el = source_it.as_mut().map(|el| el.next()).flatten();
+        let el = source_it.as_mut().map(|el| 
+            el.next().expect("Should be enough elements in the source")
+        );
         result[i] = GoldilocksField::alloc_from_field(cs, el)?;
     }
 
