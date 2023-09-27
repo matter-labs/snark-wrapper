@@ -121,7 +121,7 @@ impl<
         )?;
 
         // Verify proof
-        crate::verifier::verify::<E, CS, H, TR>(
+        let correct = crate::verifier::verify::<E, CS, H, TR>(
             cs,
             self.transcript_params.clone(),
             &proof_config,
@@ -130,6 +130,7 @@ impl<
             &fixed_parameters,
             &vk,
         )?;
+        Boolean::enforce_equal(cs, &correct, &Boolean::constant(true))?;
 
         // Aggregate PI
         let _pi = aggregate_public_inputs(cs, &proof.public_inputs)?;
@@ -176,14 +177,14 @@ pub fn verify<
         &constants,
     )?;
 
-    check_quotient_contributions_in_z(
+    validity_flags.extend(check_quotient_contributions_in_z(
         cs,
         proof,
         &challenges,
         verifier,
         fixed_parameters,
         &constants,
-    )?;
+    )?);
 
     validity_flags.extend(verify_fri_part::<E, CS, H, TR>(
         cs,
