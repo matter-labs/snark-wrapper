@@ -145,3 +145,65 @@ impl<F: PrimeField> AbsorptionModeTrait<F> for AbsorptionModeReplacement<F> {
         unimplemented!("pad is not used")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use boojum::cs::oracle::TreeHasher;
+    use rand::{Rng, Rand};
+    use boojum::field::{SmallField, U64Representable};
+
+    use franklin_crypto::bellman::pairing::bn256::{Bn256, Fr};
+    use franklin_crypto::bellman::plonk::better_better_cs::cs::*;
+    use franklin_crypto::plonk::circuit::bigint_new::BITWISE_LOGICAL_OPS_TABLE_NAME;
+    
+    type TH = Poseidon2Sponge::<Bn256, GL, AbsorptionModeReplacement<Fr>, 2, 3>;
+    type CTH = CircuitPoseidon2Sponge::<Bn256, 2, 3, 3, true>;
+
+    #[test]
+    fn test_poseidon2_tree_hasher() {
+        let mut assembly = TrivialAssembly::<Bn256, PlonkCsWidth4WithNextStepParams, Width4MainGateWithDNext>::new();
+        let _before = assembly.n();
+
+        let mut rng = rand::thread_rng();
+        let buffer_u64 = [0; 100].map(|_| rng.gen_range(0, GL::CHAR));
+
+        let buffer_circuit = buffer_u64.map(|x| 
+            GoldilocksField::alloc_from_u64(&mut assembly, Some(x)).unwrap()
+        );
+
+        let buffer_gl = buffer_u64.map(|x| GL::from_u64_unchecked(x));
+
+        // add table for range check
+        let columns3 = vec![
+            PolyIdentifier::VariablesPolynomial(0),
+            PolyIdentifier::VariablesPolynomial(1),
+            PolyIdentifier::VariablesPolynomial(2),
+        ];
+
+        let name = BITWISE_LOGICAL_OPS_TABLE_NAME;
+        let bitwise_logic_table = LookupTableApplication::new(
+            name,
+            TwoKeysOneValueBinopTable::<Bn256, XorBinop>::new(8, name),
+            columns3.clone(),
+            None,
+            true,
+        );
+        assembly.add_table(bitwise_logic_table).unwrap();
+
+        let leaf_hash = TH::hash_into_leaf(&buffer_gl);
+        let leaf_hash_circuit = CTH::hash_into_leaf(&mut assembly, &buffer_circuit).unwrap();
+
+        assert_eq!(leaf_hash, leaf_hash_circuit.get_value().unwrap());
+
+        let rand_fr = [0; 2].map(|_| Fr::rand(&mut rng));
+        let num = rand_fr.clone().map(|x|
+            Num::alloc(&mut assembly, Some(x)).unwrap()
+        );
+
+        let node_hash = TH::hash_into_node(&rand_fr[0], &rand_fr[1], 3);
+        let node_hash_circuit = CTH::hash_into_node(&mut assembly, &num[0], &num[1], 3).unwrap();
+
+        assert_eq!(node_hash, node_hash_circuit.get_value().unwrap());
+    }
+}
