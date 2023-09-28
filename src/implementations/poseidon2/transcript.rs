@@ -130,6 +130,7 @@ impl<
 
         let to_absorb = std::mem::replace(&mut self.buffer, vec![]);
         self.sponge.absorb(cs, &to_absorb)?;
+        self.last_filled = 0;
 
         self.available_challenges = vec![];
         let commitment = self.sponge.finalize(cs)?;
@@ -147,4 +148,90 @@ fn get_challenges_from_num<E: Engine, CS: ConstraintSystem<E>>(
     num: Num<E>,
 ) -> Result<Vec<GoldilocksField<E>>, SynthesisError> {
     Ok(GoldilocksField::from_num_to_multiple_with_reduction::<_, 3>(cs, num)?.to_vec())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rand::{Rng, Rand};
+    use boojum::field::{SmallField, U64Representable};
+    use boojum::cs::implementations::transcript::Transcript;
+
+    use franklin_crypto::bellman::pairing::bn256::{Bn256, Fr};
+    use franklin_crypto::bellman::plonk::better_better_cs::cs::*;
+    use franklin_crypto::plonk::circuit::bigint_new::BITWISE_LOGICAL_OPS_TABLE_NAME;
+    
+    use rescue_poseidon::poseidon2::transcript::Poseidon2Transcript;
+
+    use crate::implementations::poseidon2::tree_hasher::AbsorptionModeReplacement;
+
+    #[test]
+    fn test_poseidon2_transcript() {
+        let mut assembly = TrivialAssembly::<Bn256, PlonkCsWidth4WithNextStepParams, Width4MainGateWithDNext>::new();
+        let _before = assembly.n();
+
+        let mut rng = rand::thread_rng();
+        let buffer_u64 = [0; 100].map(|_| rng.gen_range(0, GL::CHAR));
+
+        let buffer_circuit = buffer_u64.map(|x| 
+            GoldilocksField::alloc_from_u64(&mut assembly, Some(x)).unwrap()
+        );
+
+        let buffer_gl = buffer_u64.map(|x| GL::from_u64_unchecked(x));
+
+        // add table for range check
+        let columns3 = vec![
+            PolyIdentifier::VariablesPolynomial(0),
+            PolyIdentifier::VariablesPolynomial(1),
+            PolyIdentifier::VariablesPolynomial(2),
+        ];
+
+        let name = BITWISE_LOGICAL_OPS_TABLE_NAME;
+        let bitwise_logic_table = LookupTableApplication::new(
+            name,
+            TwoKeysOneValueBinopTable::<Bn256, XorBinop>::new(8, name),
+            columns3.clone(),
+            None,
+            true,
+        );
+        assembly.add_table(bitwise_logic_table).unwrap();
+
+        let mut transcript = Poseidon2Transcript::<Bn256, GL, AbsorptionModeReplacement<Fr>, 2, 3>::new();
+        let mut circuit_transcript = CircuitPoseidon2Transcript::<Bn256, 2, 3, 3, true>::new();
+
+        transcript.witness_field_elements(&buffer_gl);
+        circuit_transcript.witness_field_elements(&mut assembly, &buffer_circuit).unwrap();
+
+        for _ in 0..5 {
+            let chal = transcript.get_challenge();
+            let chal_circuit = circuit_transcript.get_challenge(&mut assembly).unwrap();
+
+            assert_eq!(chal, chal_circuit.into_num().get_value().unwrap().into_repr().as_ref()[0]);
+        }
+
+        transcript.witness_field_elements(&buffer_gl);
+        circuit_transcript.witness_field_elements(&mut assembly, &buffer_circuit).unwrap();
+
+        for _ in 0..10 {
+            let chal = transcript.get_challenge();
+            let chal_circuit = circuit_transcript.get_challenge(&mut assembly).unwrap();
+
+            assert_eq!(chal, chal_circuit.into_num().get_value().unwrap().into_repr().as_ref()[0]);
+        }
+
+        let rand_fr: Vec<_> = (0..10).map(|_| Fr::rand(&mut rng)).collect();
+        let num: Vec<_> = rand_fr.iter().map(|x|
+            Num::alloc(&mut assembly, Some(*x)).unwrap()
+        ).collect();
+
+        transcript.witness_merkle_tree_cap(&rand_fr);
+        circuit_transcript.witness_merkle_tree_cap(&mut assembly, &num).unwrap();
+
+        for _ in 0..5 {
+            let chal = transcript.get_challenge();
+            let chal_circuit = circuit_transcript.get_challenge(&mut assembly).unwrap();
+
+            assert_eq!(chal, chal_circuit.into_num().get_value().unwrap().into_repr().as_ref()[0]);
+        }
+    }
 }

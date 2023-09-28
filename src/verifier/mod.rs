@@ -14,7 +14,7 @@ use franklin_crypto::plonk::circuit::allocated_num::{Num, AllocatedNum};
 use franklin_crypto::bellman::pairing::Engine;
 use franklin_crypto::plonk::circuit::boolean::Boolean;
 use franklin_crypto::bellman::plonk::better_better_cs::cs::ConstraintSystem;
-use franklin_crypto::bellman::{Field, SynthesisError, PrimeField};
+use franklin_crypto::bellman::{Field, SynthesisError, PrimeField, PrimeFieldRepr};
 use franklin_crypto::plonk::circuit::linear_combination::LinearCombination;
 use franklin_crypto::plonk::circuit::goldilocks::GoldilocksField;
 use franklin_crypto::plonk::circuit::goldilocks::
@@ -83,7 +83,7 @@ impl<
     }
 
     fn synthesize<CS: ConstraintSystem<E> + 'static>(&self, cs: &mut CS) -> Result<(), SynthesisError> {
-        // add table for range check
+        // Add table for range check
         let columns3 = vec![
             PolyIdentifier::VariablesPolynomial(0),
             PolyIdentifier::VariablesPolynomial(1),
@@ -100,8 +100,7 @@ impl<
         );
         cs.add_table(bitwise_logic_table).unwrap();
 
-        // ADD CUSTOM GATE
-
+        // Prepare for proof verification
         let verifier_builder = self.wrapper_function.builder_for_wrapper();
         let verifier = verifier_builder.create_wrapper_verifier(cs);
 
@@ -122,7 +121,7 @@ impl<
         )?;
 
         // Verify proof
-        crate::verifier::verify::<E, CS, H, TR>(
+        let correct = crate::verifier::verify::<E, CS, H, TR>(
             cs,
             self.transcript_params.clone(),
             &proof_config,
@@ -131,22 +130,10 @@ impl<
             &fixed_parameters,
             &vk,
         )?;
+        Boolean::enforce_equal(cs, &correct, &Boolean::constant(true))?;
 
-        // aggregate public inputs to one scalar field element
-        assert!(proof.public_inputs.len() * (GL::CAPACITY_BITS / 8) <= E::Fr::CAPACITY as usize, 
-            "scalar field capacity is not enough to fit all public inputs");
-        let mut tmp = E::Fr::one();
-        let shift = E::Fr::from_raw_repr(<E::Fr as PrimeField>::Repr::from(1 << (GL::CAPACITY_BITS % 8))).unwrap();
-        let mut lc = LinearCombination::<E>::zero();
-        for pi in proof.public_inputs.iter() {
-            lc.add_assign_number_with_coeff(&pi.into_num(), tmp);
-            tmp.mul_assign(&shift);
-        }
-        let mut minus_one = E::Fr::one();
-        minus_one.negate();
-        let pi = Num::Variable(AllocatedNum::alloc_input(cs, || Ok(*lc.get_value().get()?))?);
-        lc.add_assign_number_with_coeff(&pi, minus_one);
-        lc.enforce_zero(cs)?;
+        // Aggregate PI
+        let _pi = aggregate_public_inputs(cs, &proof.public_inputs)?;
 
         Ok(())
     }
@@ -190,14 +177,14 @@ pub fn verify<
         &constants,
     )?;
 
-    check_quotient_contributions_in_z(
+    validity_flags.extend(check_quotient_contributions_in_z(
         cs,
         proof,
         &challenges,
         verifier,
         fixed_parameters,
         &constants,
-    )?;
+    )?);
 
     validity_flags.extend(verify_fri_part::<E, CS, H, TR>(
         cs,
@@ -214,4 +201,37 @@ pub fn verify<
     let correct = smart_and(cs, &validity_flags)?;
 
     Ok(correct)
+}
+
+/// aggregate public inputs to one scalar field element
+fn aggregate_public_inputs<E: Engine, CS: ConstraintSystem<E>>(
+    cs: &mut CS,
+    public_inputs: &[GoldilocksField<E>],
+) -> Result<Num<E>, SynthesisError> {
+    let chunk_bit_size = (GL::CAPACITY_BITS / 8) * 8;
+    assert!(public_inputs.len() * chunk_bit_size <= E::Fr::CAPACITY as usize, 
+        "scalar field capacity is not enough to fit all public inputs");
+
+    // compute aggregated pi value
+    let mut tmp = E::Fr::one();
+    let mut shift_repr = <E::Fr as PrimeField>::Repr::from(1);
+    shift_repr.shl(chunk_bit_size as u32);
+    let shift = E::Fr::from_repr(shift_repr).unwrap();
+
+    let mut lc = LinearCombination::<E>::zero();
+    for pi in public_inputs.iter() {
+        lc.add_assign_number_with_coeff(&pi.into_num(), tmp);
+        tmp.mul_assign(&shift);
+    }
+
+    // allocate as pi
+    let pi = Num::Variable(AllocatedNum::alloc_input(cs, || Ok(*lc.get_value().get()?))?);
+
+    // check sum
+    let mut minus_one = E::Fr::one();
+    minus_one.negate();
+    lc.add_assign_number_with_coeff(&pi, minus_one);
+    lc.enforce_zero(cs)?;
+
+    Ok(pi)
 }
