@@ -219,7 +219,7 @@ fn aggregate_public_inputs<E: Engine, CS: ConstraintSystem<E>>(
     let shift = E::Fr::from_repr(shift_repr).unwrap();
 
     let mut lc = LinearCombination::<E>::zero();
-    for pi in public_inputs.iter() {
+    for pi in public_inputs.iter().rev() {
         lc.add_assign_number_with_coeff(&pi.into_num(), tmp);
         tmp.mul_assign(&shift);
     }
