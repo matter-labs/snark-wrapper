@@ -131,7 +131,7 @@ impl<
     }
 }
 
-use boojum::algebraic_props::round_function::AbsorptionModeTrait;
+use crate::boojum::algebraic_props::round_function::AbsorptionModeTrait;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AbsorptionModeReplacement<F: PrimeField>(std::marker::PhantomData<F>);
@@ -149,13 +149,13 @@ impl<F: PrimeField> AbsorptionModeTrait<F> for AbsorptionModeReplacement<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use boojum::cs::oracle::TreeHasher;
+    use crate::boojum::cs::oracle::TreeHasher;
     use rand::{Rng, Rand};
-    use boojum::field::{SmallField, U64Representable};
+    use crate::boojum::field::{SmallField, U64Representable};
 
-    use franklin_crypto::bellman::pairing::bn256::{Bn256, Fr};
-    use franklin_crypto::bellman::plonk::better_better_cs::cs::*;
-    use franklin_crypto::plonk::circuit::bigint_new::BITWISE_LOGICAL_OPS_TABLE_NAME;
+    use crate::franklin_crypto::bellman::pairing::bn256::{Bn256, Fr};
+    use crate::franklin_crypto::bellman::plonk::better_better_cs::cs::*;
+    use crate::franklin_crypto::plonk::circuit::bigint_new::BITWISE_LOGICAL_OPS_TABLE_NAME;
     
     type TH = Poseidon2Sponge::<Bn256, GL, AbsorptionModeReplacement<Fr>, 2, 3>;
     type CTH = CircuitPoseidon2Sponge::<Bn256, 2, 3, 3, true>;

@@ -1,7 +1,7 @@
 use super::*;
 
-use boojum::cs::implementations::verifier::{VerificationKeyCircuitGeometry, SizeCalculator};
-use boojum::field::goldilocks::{GoldilocksField as GL, GoldilocksExt2 as GLExt2};
+use crate::boojum::cs::implementations::verifier::{VerificationKeyCircuitGeometry, SizeCalculator};
+use crate::boojum::field::goldilocks::{GoldilocksField as GL, GoldilocksExt2 as GLExt2};
 
 #[derive(Clone, Default, Debug)]
 pub(crate) struct ConstantsHolder {
@@ -106,7 +106,7 @@ impl ConstantsHolder {
 
         result.total_num_lookup_argument_terms = result.num_lookup_subarguments + result.num_multiplicities_polys;
 
-        use boojum::cs::implementations::copy_permutation::num_intermediate_partial_product_relations;
+        use crate::boojum::cs::implementations::copy_permutation::num_intermediate_partial_product_relations;
         result.num_intermediate_partial_product_relations =
             num_intermediate_partial_product_relations(result.num_copy_permutation_polys, result.quotient_degree);
 
@@ -242,7 +242,7 @@ impl ConstantsHolder {
             num_queries,                 // num queries
             interpolation_log2s_schedule, // folding schedule
             final_expected_degree,
-        ) = boojum::cs::implementations::prover::compute_fri_schedule(
+        ) = crate::boojum::cs::implementations::prover::compute_fri_schedule(
             proof_config.security_level as u32,
             proof_config.merkle_tree_cap_size,
             proof_config.pow_bits,

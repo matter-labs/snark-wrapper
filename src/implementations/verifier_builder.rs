@@ -3,17 +3,17 @@
 use std::any::TypeId;
 use std::collections::HashMap;
 
-use franklin_crypto::bellman::pairing::Engine;
-use franklin_crypto::bellman::plonk::better_better_cs::cs::ConstraintSystem;
+use crate::franklin_crypto::bellman::pairing::Engine;
+use crate::franklin_crypto::bellman::plonk::better_better_cs::cs::ConstraintSystem;
 
-use boojum::cs::{CSGeometry, LookupParameters};
-use boojum::field::goldilocks::GoldilocksField as GL;
-use boojum::cs::traits::circuit::{CircuitBuilder, CircuitBuilderProxy};
-use boojum::cs::traits::evaluator::PerChunkOffset;
-use boojum::cs::traits::evaluator::GateBatchEvaluationComparisonFunction;
-use boojum::cs::cs_builder::new_builder;
-use boojum::cs::cs_builder::CsBuilderImpl;
-use boojum::cs::traits::evaluator::GatePlacementType;
+use crate::boojum::cs::{CSGeometry, LookupParameters};
+use crate::boojum::field::goldilocks::GoldilocksField as GL;
+use crate::boojum::cs::traits::circuit::{CircuitBuilder, CircuitBuilderProxy};
+use crate::boojum::cs::traits::evaluator::PerChunkOffset;
+use crate::boojum::cs::traits::evaluator::GateBatchEvaluationComparisonFunction;
+use crate::boojum::cs::cs_builder::new_builder;
+use crate::boojum::cs::cs_builder::CsBuilderImpl;
+use crate::boojum::cs::traits::evaluator::GatePlacementType;
 
 use crate::verifier_structs::WrapperVerifier;
 use crate::traits::circuit::ErasedBuilderForWrapperVerifier;
@@ -97,15 +97,15 @@ impl<
     }
 }
 
-use boojum::cs::GateConfigurationHolder;
-use boojum::cs::StaticToolboxHolder;
-use boojum::cs::cs_builder::CsBuilder;
-use boojum::cs::traits::{gate::Gate, evaluator::GateConstraintEvaluator};
-use boojum::cs::traits::gate::GatePlacementStrategy;
-use boojum::cs::GateTypeEntry;
-use boojum::cs::gates::lookup_marker::LookupFormalGate;
-use boojum::cs::Tool;
-use boojum::cs::gates::LookupTooling;
+use crate::boojum::cs::GateConfigurationHolder;
+use crate::boojum::cs::StaticToolboxHolder;
+use crate::boojum::cs::cs_builder::CsBuilder;
+use crate::boojum::cs::traits::{gate::Gate, evaluator::GateConstraintEvaluator};
+use crate::boojum::cs::traits::gate::GatePlacementStrategy;
+use crate::boojum::cs::GateTypeEntry;
+use crate::boojum::cs::gates::lookup_marker::LookupFormalGate;
+use crate::boojum::cs::Tool;
+use crate::boojum::cs::gates::LookupTooling;
 
 impl<
         'a,

@@ -2,11 +2,11 @@ use crate::traits::transcript::CircuitGLTranscript;
 
 use super::*;
 use super::allocated_proof::AllocatedProof;
-use boojum::field::traits::field_like::PrimeFieldLike;
+use crate::boojum::field::traits::field_like::PrimeFieldLike;
 
-use franklin_crypto::plonk::circuit::goldilocks::prime_field_like::*;
-use franklin_crypto::bellman::plonk::better_better_cs::cs::ConstraintSystem;
-use franklin_crypto::plonk::circuit::goldilocks::prime_field_like::GoldilocksExtAsFieldWrapper;
+use crate::franklin_crypto::plonk::circuit::goldilocks::prime_field_like::*;
+use crate::franklin_crypto::bellman::plonk::better_better_cs::cs::ConstraintSystem;
+use crate::franklin_crypto::plonk::circuit::goldilocks::prime_field_like::GoldilocksExtAsFieldWrapper;
 
 use crate::verifier::utils::materialize_powers_serial;
 
@@ -116,7 +116,7 @@ impl<E: Engine, CS: ConstraintSystem<E> + 'static> ChallengesHolder<E, CS> {
         let z = transcript.get_multiple_challenges_fixed::<_, 2>(cs)?;
         self.z = GoldilocksExtAsFieldWrapper::from_coeffs_in_base(z);
 
-        use boojum::cs::implementations::utils::domain_generator_for_size;
+        use crate::boojum::cs::implementations::utils::domain_generator_for_size;
         let omega = domain_generator_for_size::<GL>(fixed_parameters.domain_size as u64);
         let omega_cs_constant = GoldilocksAsFieldWrapper::constant(omega, cs);
         self.z_omega = self.z;

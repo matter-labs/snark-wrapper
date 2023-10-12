@@ -1,6 +1,6 @@
 use super::*;
 
-use boojum::cs::implementations::verifier::VerificationKey;
+use crate::boojum::cs::implementations::verifier::VerificationKey;
 
 #[derive(Clone, Debug)]
 pub struct AllocatedVerificationKey<E: Engine, H: CircuitGLTreeHasher<E>> {
