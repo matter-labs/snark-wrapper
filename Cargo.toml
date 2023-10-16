@@ -9,10 +9,5 @@ edition = "2021"
 derivative = "2"
 rand = "0.4"
 
-franklin_crypto = {package = "franklin-crypto", features = ["plonk"], git = "https://github.com/matter-labs/franklin-crypto", branch = "snark_wrapper"}
-# franklin_crypto = {package = "franklin-crypto", features = ["plonk"], path = "../franklin-crypto"}
 rescue_poseidon = {git = "https://github.com/matter-labs/rescue-poseidon.git", branch = "poseidon2"}
-boojum = {git = "https://github.com/matter-labs/era-boojum.git", branch = "main"}
-
 # rescue_poseidon = {path = "../rescue-poseidon"}
-# boojum = {package = "boojum", path = "../boojum" }

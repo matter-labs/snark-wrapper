@@ -1,6 +1,6 @@
 use super::*;
 
-use boojum::cs::oracle::TreeHasher;
+use crate::boojum::cs::oracle::TreeHasher;
 
 pub trait CircuitGLTreeHasher<E: Engine>:
     'static + Clone + Send + Sync

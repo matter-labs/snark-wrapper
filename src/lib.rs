@@ -8,5 +8,6 @@ pub mod traits;
 
 pub mod implementations;
 
-pub extern crate franklin_crypto;
 pub extern crate rescue_poseidon;
+pub use rescue_poseidon::franklin_crypto;
+pub use franklin_crypto::boojum;

@@ -1,16 +1,16 @@
 use super::*;
 use derivative::*;
 
-use boojum::cs::traits::evaluator::GatePurpose;
-use boojum::cs::traits::evaluator::GatePlacementType;
-use boojum::cs::traits::evaluator::GenericDynamicEvaluatorOverGeneralPurposeColumns;
-use boojum::cs::traits::evaluator::GenericDynamicEvaluatorOverSpecializedColumns;
-use boojum::cs::implementations::verifier::VerifierPolyStorage;
-use boojum::cs::implementations::verifier::VerifierRelationDestination;
-use boojum::cs::traits::evaluator::GenericColumnwiseEvaluator;
-use boojum::cs::traits::evaluator::GenericRowwiseEvaluator;
+use crate::boojum::cs::traits::evaluator::GatePurpose;
+use crate::boojum::cs::traits::evaluator::GatePlacementType;
+use crate::boojum::cs::traits::evaluator::GenericDynamicEvaluatorOverGeneralPurposeColumns;
+use crate::boojum::cs::traits::evaluator::GenericDynamicEvaluatorOverSpecializedColumns;
+use crate::boojum::cs::implementations::verifier::VerifierPolyStorage;
+use crate::boojum::cs::implementations::verifier::VerifierRelationDestination;
+use crate::boojum::cs::traits::evaluator::GenericColumnwiseEvaluator;
+use crate::boojum::cs::traits::evaluator::GenericRowwiseEvaluator;
 
-use franklin_crypto::plonk::circuit::goldilocks::prime_field_like::GoldilocksExtAsFieldWrapper;
+use crate::franklin_crypto::plonk::circuit::goldilocks::prime_field_like::GoldilocksExtAsFieldWrapper;
 
 #[derive(Derivative)]
 #[derivative(Debug)]
@@ -57,8 +57,8 @@ pub(crate) struct TypeErasedGateEvaluationWrapperVerificationFunction<
     >,
 }
 
-use boojum::cs::traits::evaluator::GateConstraintEvaluator;
-use boojum::cs::traits::evaluator::GateBatchEvaluationComparisonFunction;
+use crate::boojum::cs::traits::evaluator::GateConstraintEvaluator;
+use crate::boojum::cs::traits::evaluator::GateBatchEvaluationComparisonFunction;
 impl<E: Engine, CS: ConstraintSystem<E> + 'static>
     TypeErasedGateEvaluationWrapperVerificationFunction<E, CS>
 {

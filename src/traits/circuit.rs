@@ -1,8 +1,8 @@
 use super::*;
 
 use crate::verifier_structs::WrapperVerifier;
-use boojum::cs::{CSGeometry, LookupParameters};
-use boojum::cs::implementations::prover::ProofConfig;
+use crate::boojum::cs::{CSGeometry, LookupParameters};
+use crate::boojum::cs::implementations::prover::ProofConfig;
 
 pub trait ErasedBuilderForWrapperVerifier<
     E: Engine,

@@ -138,7 +138,7 @@ impl<
             .map(|el| vec![el.pow_challenge])
             .unwrap_or(vec![]);
 
-        let mut lsb_iter = boojum::utils::LSBIterator::new(&pow_challenge);
+        let mut lsb_iter = crate::boojum::utils::LSBIterator::new(&pow_challenge);
 
         for i in 0..64 {
             pow_challenge_boolean[i] = Boolean::alloc(cs, lsb_iter.next())?;

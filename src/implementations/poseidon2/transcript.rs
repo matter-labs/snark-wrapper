@@ -154,12 +154,12 @@ fn get_challenges_from_num<E: Engine, CS: ConstraintSystem<E>>(
 mod tests {
     use super::*;
     use rand::{Rng, Rand};
-    use boojum::field::{SmallField, U64Representable};
-    use boojum::cs::implementations::transcript::Transcript;
+    use crate::boojum::field::{SmallField, U64Representable};
+    use crate::boojum::cs::implementations::transcript::Transcript;
 
-    use franklin_crypto::bellman::pairing::bn256::{Bn256, Fr};
-    use franklin_crypto::bellman::plonk::better_better_cs::cs::*;
-    use franklin_crypto::plonk::circuit::bigint_new::BITWISE_LOGICAL_OPS_TABLE_NAME;
+    use crate::franklin_crypto::bellman::pairing::bn256::{Bn256, Fr};
+    use crate::franklin_crypto::bellman::plonk::better_better_cs::cs::*;
+    use crate::franklin_crypto::plonk::circuit::bigint_new::BITWISE_LOGICAL_OPS_TABLE_NAME;
     
     use rescue_poseidon::poseidon2::transcript::Poseidon2Transcript;
 

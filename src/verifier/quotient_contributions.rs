@@ -3,11 +3,11 @@ use super::*;
 use std::collections::HashMap;
 
 use std::alloc::Global;
-use boojum::cs::implementations::copy_permutation::non_residues_for_copy_permutation;
-use boojum::cs::implementations::verifier::*;
-use boojum::cs::gates::lookup_marker::LookupFormalGate;
-use boojum::cs::traits::gate::GatePlacementStrategy;
-use boojum::cs::gates::lookup_marker::LookupGateMarkerFormalEvaluator;
+use crate::boojum::cs::implementations::copy_permutation::non_residues_for_copy_permutation;
+use crate::boojum::cs::implementations::verifier::*;
+use crate::boojum::cs::gates::lookup_marker::LookupFormalGate;
+use crate::boojum::cs::traits::gate::GatePlacementStrategy;
+use crate::boojum::cs::gates::lookup_marker::LookupGateMarkerFormalEvaluator;
 
 /// Run verifier at z.
 /// We should check:
