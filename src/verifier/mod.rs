@@ -212,7 +212,7 @@ fn aggregate_public_inputs<E: Engine, CS: ConstraintSystem<E>>(
     assert!(public_inputs.len() * chunk_bit_size <= E::Fr::CAPACITY as usize, 
         "scalar field capacity is not enough to fit all public inputs");
 
-    // Firstly we check that public inputs are have correct size
+    // Firstly we check that public inputs have correct size
     use crate::franklin_crypto::plonk::circuit::bigint_new::enforce_range_check_using_bitop_table;
     for pi in public_inputs.iter() {
         let table = cs.get_table(BITWISE_LOGICAL_OPS_TABLE_NAME).unwrap();
