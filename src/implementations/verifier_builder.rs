@@ -455,9 +455,9 @@ impl<
         )
     }
 
-    fn build<GC: GateConfigurationHolder<GL>, TB: StaticToolboxHolder>(
+    fn build<'b, GC: GateConfigurationHolder<GL>, TB: StaticToolboxHolder, ARG: Into<Self::BuildParams<'b>>>(
         builder: CsBuilder<Self, GL, GC, TB>,
-        _params: Self::BuildParams<'_>,
+        _params: ARG,
     ) -> Self::Final<GC, TB> {
         let this: CsWrapperVerifierBuilder<E, CS> = builder.implementation;
 
