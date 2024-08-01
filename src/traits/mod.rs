@@ -9,3 +9,6 @@ use crate::franklin_crypto::bellman::SynthesisError;
 pub mod circuit;
 pub mod transcript;
 pub mod tree_hasher;
+pub mod pow;
+
+pub use pow::*;
