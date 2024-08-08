@@ -18,7 +18,7 @@ pub struct AllocatedProof<E: Engine, H: CircuitGLTreeHasher<E>> {
 
     pub queries_per_fri_repetition: Vec<AllocatedSingleRoundQueries<E, H>>,
 
-    pub pow_challenge: [Boolean; 64],
+    pub pow_challenge_le: [Boolean; 64],
 }
 
 impl<
@@ -163,7 +163,7 @@ impl<
 
             queries_per_fri_repetition,
 
-            pow_challenge: pow_challenge_boolean,
+            pow_challenge_le: pow_challenge_boolean,
         })
     }
 }

@@ -26,13 +26,16 @@ use crate::franklin_crypto::plonk::circuit::Assignment;
 use crate::franklin_crypto::bellman::plonk::better_better_cs::gates
     ::selector_optimized_with_d_next::SelectorOptimizedWidth4MainGateWithDNext;
 
+use crate::implementations::poseidon2::pow::ConcretePoseidon2SpongeGadget;
 use crate::verifier_structs::{*, allocated_proof::*};
 use crate::traits::transcript::CircuitGLTranscript;
 use crate::traits::tree_hasher::CircuitGLTreeHasher;
 use crate::verifier_structs::challenges::{ChallengesHolder, EvaluationsHolder};
 use crate::verifier_structs::allocated_vk::AllocatedVerificationKey;
 use crate::verifier_structs::constants::ConstantsHolder;
+use crate::traits::*;
 use crate::traits::circuit::*;
+
 
 mod first_step;
 mod quotient_contributions;
@@ -44,7 +47,7 @@ use quotient_contributions::*;
 use fri::*;
 use utils::*;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct WrapperCircuit<
     E: Engine,
     HS: TreeHasher<GL, Output = E::Fr>,
@@ -121,7 +124,83 @@ impl<
         )?;
 
         // Verify proof
-        let correct = crate::verifier::verify::<E, CS, H, TR>(
+        let correct = crate::verifier::verify::<E, CS, H, TR, ConcretePoseidon2SpongeGadget<E>>(
+            cs,
+            self.transcript_params.clone(),
+            &proof_config,
+            &proof,
+            &verifier,
+            &fixed_parameters,
+            &vk,
+        )?;
+        Boolean::enforce_equal(cs, &correct, &Boolean::constant(true))?;
+
+        // Aggregate PI
+        let _pi = aggregate_public_inputs(cs, &proof.public_inputs)?;
+
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct WrapperCircuitWidth3NoLookupNoCustomGate<
+    E: Engine,
+    HS: TreeHasher<GL, Output = E::Fr>,
+    H: CircuitGLTreeHasher<E, CircuitOutput = Num<E>, NonCircuitSimulator = HS>,
+    TR: CircuitGLTranscript<
+        E,
+        CircuitCompatibleCap = H::CircuitOutput,
+    >,
+    PWF: ProofWrapperFunction<E>,
+> {
+    pub witness: Option<Proof<GL, HS, GLExt2>>,
+    pub vk: VerificationKey<GL, H::NonCircuitSimulator>,
+    pub fixed_parameters: VerificationKeyCircuitGeometry,
+    pub transcript_params: TR::TranscriptParameters,
+    pub wrapper_function: PWF,
+}
+
+
+
+impl<
+    E: Engine,
+    HS: TreeHasher<GL, Output = E::Fr>,
+    H: CircuitGLTreeHasher<E, CircuitOutput = Num<E>, NonCircuitSimulator = HS>,
+    TR: CircuitGLTranscript<
+        E,
+        CircuitCompatibleCap = H::CircuitOutput,
+    >,
+    PWF: ProofWrapperFunction<E>,
+> Circuit<E> for WrapperCircuitWidth3NoLookupNoCustomGate<E, HS, H, TR, PWF> {
+    type MainGate = rescue_poseidon::franklin_crypto::bellman::plonk::better_better_cs::gates::naive_main_gate::NaiveMainGate;
+
+    fn declare_used_gates() -> Result<Vec<Box<dyn GateInternal<E>>>, SynthesisError> {
+        Ok(
+            vec![Self::MainGate::default().into_internal()]
+        )
+    }
+
+    fn synthesize<CS: ConstraintSystem<E> + 'static>(&self, cs: &mut CS) -> Result<(), SynthesisError> {        
+        // Prepare for proof verification
+        let verifier_builder = self.wrapper_function.builder_for_wrapper();
+        let verifier = verifier_builder.create_wrapper_verifier(cs);
+
+        let proof_config = self.wrapper_function.proof_config_for_compression_step();
+        let fixed_parameters = self.fixed_parameters.clone();
+
+        let vk = AllocatedVerificationKey::<E, H>::allocate_constant(
+            &self.vk,
+            &fixed_parameters,
+        );
+        let proof: AllocatedProof<E, H> = AllocatedProof::allocate_from_witness(
+            cs,
+            &self.witness,
+            &verifier,
+            &fixed_parameters,
+            &proof_config,
+        )?;
+        // Verify proof
+        let correct = crate::verifier::verify::<E, CS, H, TR, ConcretePoseidon2SpongeGadget<E>>(
             cs,
             self.transcript_params.clone(),
             &proof_config,
@@ -147,7 +226,7 @@ pub fn verify<
         E,
         CircuitCompatibleCap = H::CircuitOutput,
     >,
-    // TODO POW
+    POW: RecursivePoWRunner<E>,
 >(
     cs: &mut CS,
     transcript_params: TR::TranscriptParameters,
@@ -156,7 +235,7 @@ pub fn verify<
     verifier: &WrapperVerifier<E, CS>,
     fixed_parameters: &VerificationKeyCircuitGeometry,
     vk: &AllocatedVerificationKey<E, H>,
-) -> Result<Boolean, SynthesisError> {
+) -> Result<Boolean, SynthesisError> {    
     let mut validity_flags = Vec::with_capacity(256);
 
     let mut transcript = TR::new(cs, transcript_params)?;
@@ -185,8 +264,7 @@ pub fn verify<
         fixed_parameters,
         &constants,
     )?);
-
-    validity_flags.extend(verify_fri_part::<E, CS, H, TR>(
+    validity_flags.extend(verify_fri_part::<E, CS, H, TR, POW>(
         cs,
         proof,
         vk,
@@ -213,16 +291,9 @@ fn aggregate_public_inputs<E: Engine, CS: ConstraintSystem<E>>(
         "scalar field capacity is not enough to fit all public inputs");
 
     // Firstly we check that public inputs have correct size
-    use crate::franklin_crypto::plonk::circuit::bigint_new::enforce_range_check_using_bitop_table;
+    use rescue_poseidon::franklin_crypto::plonk::circuit::goldilocks::range_check_for_num_bits;
     for pi in public_inputs.iter() {
-        let table = cs.get_table(BITWISE_LOGICAL_OPS_TABLE_NAME).unwrap();
-        enforce_range_check_using_bitop_table(
-            cs,
-            &pi.into_num().get_variable(),
-            chunk_bit_size,
-            table,
-            false,
-        )?;
+        range_check_for_num_bits(cs, &pi.into_num(), 64)?;
     }
 
     // compute aggregated pi value
